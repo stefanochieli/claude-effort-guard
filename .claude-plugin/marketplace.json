@@ -1,5 +1,6 @@
 {
   "name": "effort-guard",
+  "description": "Marketplace for the effort-guard mod for Claude Code.",
   "owner": { "name": "stefanochieli" },
   "plugins": [
     {
