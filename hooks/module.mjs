@@ -28,7 +28,6 @@ function looksLikeTestFailure(text) {
 export function register(on) {
   let turnStruggled = false
   let turnReason = null
-  let lastToastAtCount = 0
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -96,15 +95,14 @@ export function register(on) {
     }
     await update($, log, list => [...list, entry].slice(-LOG_LIMIT))
 
-    if (consecutiveStruggles >= THRESHOLD && consecutiveStruggles !== lastToastAtCount) {
+    // Once per streak: fires when the streak reaches the threshold, and again
+    // only after a clean turn has reset it. Derived from $.state, so a hot
+    // reload cannot make it fire twice.
+    if (consecutiveStruggles === THRESHOLD) {
       $.ui.toast(
         `effort-guard: ${consecutiveStruggles} struggling turns in a row (failed commands/tests). ` +
           `Consider switching to a stronger model or raising effort one level.`,
       )
-      lastToastAtCount = consecutiveStruggles
-    }
-    if (!struggled) {
-      lastToastAtCount = 0
     }
 
     turnStruggled = false
