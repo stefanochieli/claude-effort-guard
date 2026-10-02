@@ -1,0 +1,12 @@
+{
+  "name": "effort-guard",
+  "owner": { "name": "stefanochieli" },
+  "plugins": [
+    {
+      "name": "effort-guard",
+      "source": "./",
+      "version": "0.1.0",
+      "description": "Context/token band, escalation signals and per-turn effort log for Claude Code."
+    }
+  ]
+}
