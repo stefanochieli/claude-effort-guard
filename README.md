@@ -1,6 +1,6 @@
 # effort-guard
 
-Mod per Claude Code (>= 2.1.287): banda sopra il prompt con contesto e token, segnale di escalation dopo turni "faticosi" consecutivi, registro per turno con `/effort-log`. Solo osservazione, non blocca nulla.
+Mod per Claude Code (>= 2.1.287): banda sopra il prompt con contesto e token, segnale di escalation (un toast, una sola volta per serie) dopo 3 turni "faticosi" consecutivi (comando Bash in errore o output con test falliti), registro per turno con `/effort-log`. Solo osservazione, non blocca nulla.
 
 ## Installazione
 

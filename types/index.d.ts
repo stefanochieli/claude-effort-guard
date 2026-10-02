@@ -1,8 +1,20 @@
-// PLACEHOLDER: declare the $.state values under the mod's name.
-export type Turns = { count: number }
+export type Metrics = {
+  contextPercent: number | null
+  lastTurnTokens: number | null
+  consecutiveStruggles: number
+}
+
+export type LogEntry = {
+  ts: string
+  contextPercent: number | null
+  lastTurnTokens: number | null
+  struggled: boolean
+  reason: string | null
+  consecutiveStruggles: number
+}
 
 declare module 'claude-code' {
   interface PluginState {
-    'effort-guard': { turns: Turns }
+    'effort-guard': { metrics: Metrics; log: LogEntry[] }
   }
 }
