@@ -5,21 +5,45 @@ on:
     branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  # Oldest Claude Code the README promises to support.
+  MIN_CLAUDE_CODE: 2.1.287
 jobs:
+  # Required by the protect-main ruleset: keep the job name "checks".
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: JSON syntax
         run: |
-          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json release-please-config.json .release-please-manifest.json; do
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json release-please-config.json .release-please-manifest.json .github/protect-main.json; do
             node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" && echo "ok $f"
           done
-      - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+      - name: Install Claude Code (minimum supported)
+        run: npm install -g "@anthropic-ai/claude-code@${MIN_CLAUDE_CODE}"
+      - name: Validate plugin
+        run: claude plugin validate .
+      - name: Test plugin
+        run: claude plugin test .
+
+  # Early warning for a Claude Code release that breaks the mod. Not required,
+  # and it never blocks a merge.
+  compat-latest:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Claude Code (latest)
+        run: npm install -g @anthropic-ai/claude-code@latest
       - name: Validate plugin
         run: claude plugin validate .
       - name: Test plugin
