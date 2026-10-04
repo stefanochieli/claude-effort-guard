@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/stefanochieli/claude-effort-guard/compare/effort-guard-v0.1.1...effort-guard-v0.2.0) (2026-10-02)
+
+
+### Features
+
+* implement effort-guard mod (context band, struggle toast, /effort-log) ([fcf98fe](https://github.com/stefanochieli/claude-effort-guard/commit/fcf98fea2b24c1d1483cff947b3d40cc031bfa4c))
+
+
+### Bug Fixes
+
+* toast once per struggling streak and cover it in the smoke test ([e82f628](https://github.com/stefanochieli/claude-effort-guard/commit/e82f628f1c87205e648f0f425003b7d96a401d53))
+
 ## [0.1.1](https://github.com/stefanochieli/claude-effort-guard/compare/effort-guard-v0.1.0...effort-guard-v0.1.1) (2026-10-02)
 
 
