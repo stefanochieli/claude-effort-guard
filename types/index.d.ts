@@ -4,17 +4,22 @@ export type Metrics = {
   consecutiveStruggles: number
 }
 
+export type Turn = {
+  struggled: boolean
+  reason: 'bash_error' | 'test_failure_pattern' | null
+}
+
 export type LogEntry = {
   ts: string
   contextPercent: number | null
   lastTurnTokens: number | null
   struggled: boolean
-  reason: string | null
+  reason: Turn['reason']
   consecutiveStruggles: number
 }
 
 declare module 'claude-code' {
   interface PluginState {
-    'effort-guard': { metrics: Metrics; log: LogEntry[] }
+    'effort-guard': { metrics: Metrics; turn: Turn }
   }
 }

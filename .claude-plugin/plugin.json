@@ -5,5 +5,15 @@
   "author": {
     "name": "Stefano Chieli"
   },
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "threshold": {
+      "type": "number",
+      "title": "Escalation threshold",
+      "description": "Consecutive struggling turns before the escalation toast fires.",
+      "default": 3,
+      "min": 1,
+      "max": 20
+    }
+  }
 }
