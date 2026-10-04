@@ -5,6 +5,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
 concurrency:
   group: release
   cancel-in-progress: false
@@ -13,11 +14,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v5
+        id: release
         with:
-          # A PR opened with GITHUB_TOKEN does not trigger the CI workflows, so
-          # the required "checks" never run on it. Set the RELEASE_PLEASE_TOKEN
-          # secret (a PAT or GitHub App token with contents + pull-requests
-          # write) to have release PRs run CI by themselves.
+          # Optional: with a PAT or GitHub App token (secret RELEASE_PLEASE_TOKEN)
+          # the release PR triggers the normal pull_request workflows by itself.
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      # A PR opened or updated with GITHUB_TOKEN does not trigger CI, and the
+      # ruleset requires the "checks" status. Dispatch CI on the release branch:
+      # its check run attaches to the PR head commit.
+      - name: Run CI on the release PR
+        if: ${{ steps.release.outputs.pr != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+        run: gh workflow run ci.yml --ref "$BRANCH"

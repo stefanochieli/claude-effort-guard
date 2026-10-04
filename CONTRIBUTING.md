@@ -15,7 +15,9 @@ La CI richiede il check `checks` (validate + test con la versione minima di Clau
 
 ## Release
 
-release-please apre da solo la PR di release dopo ogni merge su `main`. Se i workflow di quella PR risultano `action_required`, approvali dalla PR, oppure imposta il secret `RELEASE_PLEASE_TOKEN` (PAT o token di GitHub App con permessi `contents` e `pull-requests` in scrittura) così la CI parte da sola.
+release-please apre da solo la PR di release dopo ogni merge su `main`. Poiché la PR è aperta con `GITHUB_TOKEN`, GitHub non fa partire i workflow `pull_request` (restano `action_required`): per questo `release-please.yml` lancia la CI sul branch di release con `workflow_dispatch`, così il check richiesto `checks` compare sulla PR e la si può unire (squash) appena è verde.
+
+In alternativa, con il secret `RELEASE_PLEASE_TOKEN` (PAT o token di GitHub App con permessi `contents` e `pull-requests` in scrittura) i workflow della PR partono da soli come per ogni altra PR.
 
 ## Struttura
 
