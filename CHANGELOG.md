@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/stefanochieli/claude-effort-guard/compare/effort-guard-v0.2.0...effort-guard-v0.3.0) (2026-10-04)
+
+
+### Features
+
+* configurable threshold, persistent log and fewer false positives ([#10](https://github.com/stefanochieli/claude-effort-guard/issues/10)) ([28b19a6](https://github.com/stefanochieli/claude-effort-guard/commit/28b19a62b57c9f062f36f220bc864e76d15e54f5))
+
 ## [0.2.0](https://github.com/stefanochieli/claude-effort-guard/compare/effort-guard-v0.1.1...effort-guard-v0.2.0) (2026-10-02)
 
 
