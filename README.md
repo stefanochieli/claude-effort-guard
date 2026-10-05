@@ -38,7 +38,7 @@ Struttura: `.claude-plugin/` (manifest + marketplace), `hooks/` (modulo), `types
 - Settings → General → Pull Requests: **Allow auto-merge** e **Automatically delete head branches**
 - Settings → Actions → General → Workflow permissions: **Read and write** + **Allow GitHub Actions to create and approve pull requests** (serve a release-please)
 - Settings → Rules → Rulesets: importa `protect-main.json` (richiede il check `checks`, prodotto da `ci.yml`)
-- Opzionale: secret `RELEASE_PLEASE_TOKEN` (PAT o GitHub App) perché la CI parta anche sulla PR di release
+- Opzionale: secret `RELEASE_PLEASE_TOKEN` (PAT o GitHub App); senza, la CI sulla PR di release viene lanciata da `release-please.yml` con `workflow_dispatch`
 
 ## Automazioni
 
