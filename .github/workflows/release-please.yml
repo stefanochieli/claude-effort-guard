@@ -21,12 +21,19 @@ jobs:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+      # prs_created is true only when a release PR was created or updated.
       # A PR opened or updated with GITHUB_TOKEN does not trigger CI, and the
       # ruleset requires the "checks" status. Dispatch CI on the release branch:
       # its check run attaches to the PR head commit.
       - name: Run CI on the release PR
-        if: ${{ steps.release.outputs.pr != '' }}
+        if: ${{ steps.release.outputs.prs_created == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
-        run: gh workflow run ci.yml --ref "$BRANCH"
+          PR_JSON: ${{ steps.release.outputs.pr }}
+        run: |
+          branch=$(jq -r '.headBranchName // empty' <<< "$PR_JSON")
+          if [ -z "$branch" ]; then
+            echo "No release branch in the action output; nothing to dispatch."
+            exit 0
+          fi
+          gh workflow run ci.yml --ref "$branch"
