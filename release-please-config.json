@@ -17,8 +17,8 @@
         }
       ],
       "include-component-in-tag": false,
-      "pull-request-title-pattern": "chore: release ${version}",
-      "last-release-sha": "075230dc0c3d7448b34146ccdf6525a339ece094"
+      "pull-request-title-pattern": "chore: release ${version}"
     }
-  }
+  },
+  "last-release-sha": "075230dc0c3d7448b34146ccdf6525a339ece094"
 }
