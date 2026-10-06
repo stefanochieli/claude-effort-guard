@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/stefanochieli/claude-effort-guard/compare/v0.3.0...v0.3.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* dispatch release-PR CI only when release-please created or updated a PR ([#13](https://github.com/stefanochieli/claude-effort-guard/issues/13)) ([704984c](https://github.com/stefanochieli/claude-effort-guard/commit/704984cfe9183a200989b57a338d1f1d402bee3e))
+
 ## [0.3.0](https://github.com/stefanochieli/claude-effort-guard/compare/effort-guard-v0.2.0...effort-guard-v0.3.0) (2026-10-04)
 
 
