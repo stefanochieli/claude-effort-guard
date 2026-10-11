@@ -8,6 +8,8 @@ function engine(on: any, state: { text: string }, toasts: string[]) {
   mock.store(on)
   on('ui.toast', ($: any, e: any) => {
     toasts.push(e.text)
+
+    return { value: undefined }
   })
   on('prompt.submit', ($: any, e: any) => ({ text: e.text }))
   on('turn.complete', ($: any, e: any) => ({ text: e.answer }))
