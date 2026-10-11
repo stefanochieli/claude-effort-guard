@@ -114,3 +114,14 @@ test('the band above the prompt shows context, tokens and the streak', async ($,
 
   expect(texts.join(' ')).toContain('struggling x1/3')
 })
+
+test('/effort-summary reports turns, struggles and the most common reason', async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+
+  await runTurn($, 'a')
+  await runTurn($, 'b')
+
+  const out = (await $.command.run({ command: 'effort-summary' })).text
+  expect(out).toContain('2 turns, 2 struggling')
+  expect(out).toContain('test_failure_pattern')
+})
