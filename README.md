@@ -46,3 +46,13 @@ Struttura: `.claude-plugin/` (manifest + marketplace), `hooks/` (modulo), `types
 - **Release**: [release-please](https://github.com/googleapis/release-please) legge i Conventional Commits (`feat:`, `fix:`), apre la release PR, aggiorna versione in `plugin.json` e `marketplace.json`, CHANGELOG, tag e GitHub Release al merge.
 - **PR title lint**: i titoli PR devono essere Conventional Commits (squash merge → commit corretti).
 - **Dependabot**: aggiorna le GitHub Actions, auto-merge solo di minor/patch se la CI passa; i major restano aperti per la revisione manuale.
+
+## Versione per GitHub Copilot (sperimentale)
+
+`copilot/effort-guard.mjs` riusa `hooks/detect.mjs` come hook di Copilot CLI e degli agent hooks di VS Code (anteprima). La configurazione è in `.github/hooks/effort-guard.json` (`userPromptSubmitted`, `postToolUse`, `postToolUseFailure`).
+
+- Conta i turni faticosi consecutivi (comando di test con fallimento, tool fallito, stesso comando fallito due volte) e, alla soglia, scrive l'avviso su stderr e lo offre all'agente come `additionalContext`.
+- Soglia con la variabile d'ambiente `EFFORT_GUARD_THRESHOLD` (default 3); stato in `.effort-guard/state.json` (cartella ignorata da git, cambiabile con `EFFORT_GUARD_DIR`).
+- `node copilot/effort-guard.mjs summary` stampa il riepilogo dei turni.
+- Limiti: niente banda sopra il prompt, toast o comandi slash, e gli hook non danno (per quanto documentato) token e contesto. I nomi dei campi del payload e l'uso di `additionalContext` non sono stati verificati su una sessione Copilot reale: prima dell'uso va provato.
+- Test: `node --test tests/copilot.test.mjs`.
