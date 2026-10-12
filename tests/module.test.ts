@@ -8,6 +8,8 @@ function engine(on: any, state: { text: string }, toasts: string[]) {
   mock.store(on)
   on('ui.toast', ($: any, e: any) => {
     toasts.push(e.text)
+
+    return { value: undefined }
   })
   on('prompt.submit', ($: any, e: any) => ({ text: e.text }))
   on('turn.complete', ($: any, e: any) => ({ text: e.answer }))
@@ -113,4 +115,15 @@ test('the band above the prompt shows context, tokens and the streak', async ($,
   const texts = (await band.findAll({ type: 'Text' })).map((t: any) => t.text)
 
   expect(texts.join(' ')).toContain('struggling x1/3')
+})
+
+test('/effort-summary reports turns, struggles and the most common reason', async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+
+  await runTurn($, 'a')
+  await runTurn($, 'b')
+
+  const out = (await $.command.run({ command: 'effort-summary' })).text
+  expect(out).toContain('2 turns, 2 struggling')
+  expect(out).toContain('test_failure_pattern')
 })

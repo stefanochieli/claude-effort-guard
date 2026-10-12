@@ -14,6 +14,14 @@
       "default": 3,
       "min": 1,
       "max": 20
+    },
+    "contextThreshold": {
+      "type": "number",
+      "title": "Context warning (%)",
+      "description": "Show a one-off toast when context usage first reaches this percentage. 0 turns it off.",
+      "default": 80,
+      "min": 0,
+      "max": 100
     }
   }
 }
