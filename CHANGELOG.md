@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/stefanochieli/claude-effort-guard/compare/v0.3.1...v0.4.0) (2026-10-14)
+
+
+### Features
+
+* more struggle signals, context warning, fewer false positives and /effort-summary ([65da8a2](https://github.com/stefanochieli/claude-effort-guard/commit/65da8a2b8971838d85c6bcc5d847170242667ab7))
+* more struggle signals, context warning, fewer false positives and /effort-summary ([a2507d8](https://github.com/stefanochieli/claude-effort-guard/commit/a2507d8a4b93f5d0ffbd5a9bd158134bfe1e1555))
+* more struggle signals, context warning, fewer false positives and /effort-summary ([0c56eb8](https://github.com/stefanochieli/claude-effort-guard/commit/0c56eb868b3b96701ab1a75f0225df5d77abaf1e))
+
 ## [0.3.1](https://github.com/stefanochieli/claude-effort-guard/compare/v0.3.0...v0.3.1) (2026-10-06)
 
 
