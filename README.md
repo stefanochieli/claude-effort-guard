@@ -7,13 +7,16 @@ Mod per Claude Code (>= 2.1.287): banda sopra il prompt con contesto e token, se
 - **Turno faticoso**: un comando Bash in errore, oppure l'output di un comando di test/build (`npm test`, `ng test`, `mvn`, `gradle`, `pytest`, `go test`, `cargo`, `dotnet`, `make`, `tsc`…) che contiene un fallimento (`FAIL`, `N failing`, `BUILD FAILURE`…) anche se l'exit code è 0. I comandi dei sub-agent non contano.
 - **Escalation**: al raggiungimento della soglia di turni faticosi consecutivi compare un toast (una sola volta per serie; un turno pulito azzera la serie e lo riarma).
 - **Banda**: `ctx N% | last turn N tok | struggling xN/soglia` sopra il prompt.
-- **`/effort-log`**: ultimi 50 turni; il registro è salvato nello store del plugin e resta tra una sessione e l'altra.
+- **`/effort-log`**: ultimi 50 turni; il registro è salvato nello store del plugin e resta tra una sessione e l'altra. **`/effort-summary`**: riepilogo in una riga (turni, turni faticosi, motivo più frequente, picco di contesto).
+- **Altri segnali**: un `Edit` fallito e lo stesso comando che fallisce due volte nello stesso turno (`repeated_error`) contano come fatica; il toast riporta l'ultimo comando fallito.
+- **Falsi positivi ridotti**: `0 failed` / `Failures: 0` non contano e si guarda solo la coda dell'output. Riconosciuti anche Surefire, Karma, Playwright, Cypress e nx.
 
 ### Impostazioni
 
 | Opzione | Default | Descrizione |
 |---|---|---|
 | `threshold` | `3` | Turni faticosi consecutivi prima del toast (1–20). Si cambia dal menu `/config` del plugin. |
+| `contextThreshold` | `80` | Toast una tantum quando il contesto raggiunge questa percentuale; `0` lo disattiva. |
 
 ## Installazione
 

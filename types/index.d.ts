@@ -2,11 +2,13 @@ export type Metrics = {
   contextPercent: number | null
   lastTurnTokens: number | null
   consecutiveStruggles: number
+  lastStruggleCommand: string | null
 }
 
 export type Turn = {
   struggled: boolean
-  reason: 'bash_error' | 'test_failure_pattern' | null
+  reason: 'bash_error' | 'test_failure_pattern' | 'repeated_error' | 'edit_error' | null
+  command: string | null
 }
 
 export type LogEntry = {
