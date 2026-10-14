@@ -17,6 +17,8 @@ La CI richiede il check `checks` (validate + test con la versione minima di Clau
 
 release-please apre da solo la PR di release dopo ogni merge su `main`. Le versioni sono semver classiche `MAJOR.MINOR.PATCH` (`fix:` → patch, `feat:` → minor, `feat!:` o `BREAKING CHANGE` → major) e i tag/release si chiamano `vX.Y.Z`. Poiché la PR è aperta con `GITHUB_TOKEN`, GitHub non fa partire i workflow `pull_request` (restano `action_required`): per questo `release-please.yml` lancia la CI sul branch di release con `workflow_dispatch`, così il check richiesto `checks` compare sulla PR e la si può unire (squash) appena è verde.
 
+Con il secret `RELEASE_PLEASE_TOKEN` impostato la release è anche **automatica**: `release-please.yml` abilita l'auto-merge sulla PR di release, che si unisce da sola appena `checks` è verde, e il merge (fatto con il PAT) fa ripartire il workflow che crea tag e GitHub Release. Richiede **Allow auto-merge** nelle impostazioni del repo. Senza il secret la PR di release va unita a mano.
+
 In alternativa, con il secret `RELEASE_PLEASE_TOKEN` (PAT o token di GitHub App con permessi `contents` e `pull-requests` in scrittura) i workflow della PR partono da soli come per ogni altra PR.
 
 ## Struttura
