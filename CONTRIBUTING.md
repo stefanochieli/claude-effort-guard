@@ -2,24 +2,28 @@
 
 ## Flusso di lavoro
 
-1. Crea un branch dedicato da `main` (uno per modifica, vita breve): `fix/…`, `feat/…`, `chore/…`.
+1. Crea un branch dedicato da `develop` (uno per modifica, vita breve): `fix/…`, `feat/…`, `chore/…`.
 2. Verifica in locale:
    ```
    claude plugin validate .
    claude plugin test .
    ```
-3. Apri una PR verso `main`. Il **titolo** deve essere un [Conventional Commit](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`…): la CI lo controlla.
-4. Usa il **merge squash**: il titolo della PR diventa il commit su `main` e da lì release-please ricava versione e CHANGELOG. Non modificare a mano `version` nei manifest né `CHANGELOG.md`.
+3. Apri una PR verso `develop`. Il **titolo** deve essere un [Conventional Commit](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`…): la CI lo controlla.
+4. Non modificare a mano `version` nei manifest né `CHANGELOG.md`: lo fa `prepare-release`.
 
 La CI richiede il check `checks` (validate + test con la versione minima di Claude Code supportata). Il job `compat-latest` prova anche l'ultima versione ma non blocca il merge.
 
 ## Release
 
-release-please apre da solo la PR di release dopo ogni merge su `main`. Le versioni sono semver classiche `MAJOR.MINOR.PATCH` (`fix:` → patch, `feat:` → minor, `feat!:` o `BREAKING CHANGE` → major) e i tag/release si chiamano `vX.Y.Z`. Poiché la PR è aperta con `GITHUB_TOKEN`, GitHub non fa partire i workflow `pull_request` (restano `action_required`): per questo `release-please.yml` lancia la CI sul branch di release con `workflow_dispatch`, così il check richiesto `checks` compare sulla PR e la si può unire (squash) appena è verde.
+Si lavora su `develop`; si rilascia con una PR `develop` → `main` (merge commit, senza eliminare `develop`).
 
-Con il secret `RELEASE_PLEASE_TOKEN` impostato la release è anche **automatica**: `release-please.yml` abilita l'auto-merge sulla PR di release, che si unisce da sola appena `checks` è verde, e il merge (fatto con il PAT) fa ripartire il workflow che crea tag e GitHub Release. Richiede **Allow auto-merge** nelle impostazioni del repo. Senza il secret la PR di release va unita a mano.
+1. Actions → **prepare-release** → scegli patch/minor/major (o scrivi le note). Aggiorna `CHANGELOG.md`, `plugin.json` e `marketplace.json`, fa il commit su `develop` e apre la PR "Release vX.Y.Z" verso `main`. Senza note, queste vengono dai commit `feat:`/`fix:` dall'ultimo tag.
+2. CI verde (`checks` e `release-version`), merge con **merge commit**.
+3. **release** crea il tag `vX.Y.Z` e la GitHub Release (note dal CHANGELOG); **sync-develop** riporta `main` in `develop`.
 
-In alternativa, con il secret `RELEASE_PLEASE_TOKEN` (PAT o token di GitHub App con permessi `contents` e `pull-requests` in scrittura) i workflow della PR partono da soli come per ogni altra PR.
+`release-version` (workflow `release-guard`) blocca le PR verso `main` la cui versione non è nuova e maggiore dell'ultimo tag. Le versioni sono semver `MAJOR.MINOR.PATCH`.
+
+Con il secret `RELEASE_PAT` (PAT con `contents` e `pull-requests` in scrittura) i check partono da soli sulla PR creata da `prepare-release`; senza, le PR aperte con `GITHUB_TOKEN` non fanno partire i workflow e serve il bypass della ruleset da parte di un admin.
 
 ## Struttura
 
