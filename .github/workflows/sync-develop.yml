@@ -1,0 +1,30 @@
+name: sync-develop
+
+# Dopo ogni merge su main (PR develop -> main con merge commit) riporta main dentro develop,
+# cosi' develop non resta mai indietro di un merge commit. Il merge non ha conflitti perche'
+# main contiene solo cio' che e' gia' passato da develop.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-develop
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Merge di main in develop
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git merge --no-edit origin/main
+          git push origin HEAD:develop

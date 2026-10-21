@@ -38,14 +38,14 @@ Struttura: `.claude-plugin/` (manifest + marketplace), `hooks/` (modulo), `types
 
 ## Impostazioni repo da attivare una volta
 
-- Settings → General → Pull Requests: **Allow auto-merge** e **Automatically delete head branches**
-- Settings → Actions → General → Workflow permissions: **Read and write** + **Allow GitHub Actions to create and approve pull requests** (serve a release-please)
-- Settings → Rules → Rulesets: importa `protect-main.json` (richiede il check `checks`, prodotto da `ci.yml`)
-- Opzionale: secret `RELEASE_PLEASE_TOKEN` (PAT o GitHub App); senza, la CI sulla PR di release viene lanciata da `release-please.yml` con `workflow_dispatch`
+- Settings → General → Pull Requests: solo **merge commit** (disattiva squash e rebase); non attivare "Automatically delete head branches" (`develop` non va eliminato)
+- Settings → Actions → General → Workflow permissions: **Read and write** + **Allow GitHub Actions to create and approve pull requests** (serve a prepare-release)
+- Settings → Rules → Rulesets: importa `protect-main.json` (richiede i check `checks`, da `ci.yml`, e `release-version`, da `release-guard.yml`; solo merge commit)
+- Secret `RELEASE_PAT` (PAT con `contents` e `pull-requests` in scrittura): fa partire i check sulla PR di release; senza, serve il bypass della ruleset
 
 ## Automazioni
 
 - **CI**: validate + test su ogni PR e push su `main`, con la versione minima di Claude Code (`checks`, richiesto dal ruleset); il job `compat-latest` prova anche l'ultima versione senza bloccare.
-- **Release**: [release-please](https://github.com/googleapis/release-please) legge i Conventional Commits (`feat:`, `fix:`), apre la release PR, aggiorna versione in `plugin.json` e `marketplace.json`, CHANGELOG, tag e GitHub Release al merge.
-- **PR title lint**: i titoli PR devono essere Conventional Commits (squash merge → commit corretti).
+- **Release**: `prepare-release` (manuale) aggiorna CHANGELOG, `plugin.json` e `marketplace.json` su `develop` e apre la PR verso `main`; `release-guard` ne controlla la versione; `release` crea tag e GitHub Release al merge; `sync-develop` riporta `main` in `develop`.
+- **PR title lint**: i titoli PR devono essere Conventional Commits (le note di release partono dai commit `feat:`/`fix:`).
 - **Dependabot**: aggiorna le GitHub Actions, auto-merge solo di minor/patch se la CI passa; i major restano aperti per la revisione manuale.

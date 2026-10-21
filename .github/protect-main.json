@@ -30,9 +30,7 @@
         "required_review_thread_resolution": false,
         "require_extra_approval_for_unattributed_changes": true,
         "allowed_merge_methods": [
-          "merge",
-          "squash",
-          "rebase"
+          "merge"
         ]
       }
     },
@@ -44,6 +42,10 @@
         "required_status_checks": [
           {
             "context": "checks",
+            "integration_id": 15368
+          },
+          {
+            "context": "release-version",
             "integration_id": 15368
           }
         ]

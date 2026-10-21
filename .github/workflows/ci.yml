@@ -3,10 +3,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  # Dispatched by release.yml on the release PR branch: a PR opened with
-  # GITHUB_TOKEN does not trigger pull_request workflows, so without this the
-  # required "checks" would never run on it.
-  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -26,7 +22,7 @@ jobs:
           node-version: 22
       - name: JSON syntax
         run: |
-          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json release-please-config.json .release-please-manifest.json .github/protect-main.json; do
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json .github/protect-main.json; do
             node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" && echo "ok $f"
           done
       - name: Install Claude Code (minimum supported)
