@@ -26,6 +26,36 @@ Mod per Claude Code (>= 2.1.287): banda sopra il prompt con contesto e token, se
 /reload-plugins
 ```
 
+### Installazione globale (tutti i progetti)
+
+Dal terminale, in qualsiasi cartella, scegli lo scope **user** quando richiesto, oppure:
+
+```
+claude plugin marketplace add stefanochieli/claude-effort-guard
+claude plugin install effort-guard@effort-guard --scope user
+```
+
+Equivale a questo in `~/.claude/settings.json`:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "effort-guard": { "source": { "source": "github", "repo": "stefanochieli/claude-effort-guard" } }
+  },
+  "enabledPlugins": { "effort-guard@effort-guard": true }
+}
+```
+
+L'installazione è per macchina: su un altro PC va ripetuta.
+
+### Estensione VS Code su un altro PC
+
+L'estensione Claude Code usa lo stesso `~/.claude/settings.json` del CLI. Sul nuovo PC: installa l'estensione (o il CLI), apri il terminale integrato o il prompt dell'estensione ed esegui i comandi sopra (oppure `/plugin`), poi `/reload-plugins`. In alternativa copia le due chiavi del JSON nel `~/.claude/settings.json` di quel PC. Serve Claude Code >= 2.1.287 e lo stesso account.
+
+### Sessioni cloud (Claude Code sul web)
+
+Il container cloud non ha le impostazioni utente del tuo PC. Per attivare il plugin in un repo, aggiungi le stesse due chiavi (`extraKnownMarketplaces`, `enabledPlugins`) al file `.claude/settings.json` **del repo**, committato. Il plugin è pensato per l'interfaccia locale (banda e toast): in cloud potrebbe non mostrare la banda, ma l'hook di registrazione dovrebbe comunque girare.
+
 ## Sviluppo
 
 ```
