@@ -1,6 +1,6 @@
 name: prepare-release
 
-# Parte a mano (Actions -> prepare-release -> Run workflow): bump di versione (CHANGELOG, pom.xml, package.json)
+# Parte a mano (Actions -> prepare-release -> Run workflow): bump di versione (CHANGELOG e manifest .claude-plugin; pom.xml e package.json solo se presenti)
 # su develop e PR develop -> main "Release vX.Y.Z" con le note nel corpo.
 # Per far partire i check sulla PR serve il secret RELEASE_PAT (PAT con contents e pull-requests in scrittura):
 # le PR create con GITHUB_TOKEN non attivano altri workflow. Serve anche, nelle impostazioni del repo,
@@ -30,12 +30,12 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: develop
           fetch-depth: 0
           token: ${{ secrets.RELEASE_PAT || github.token }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
       - name: Nessuna PR di release gia' aperta
