@@ -2,8 +2,9 @@
 // Anything else (cat, grep, git log...) can print "FAIL" without meaning it.
 const TEST_COMMAND = new RegExp(
   [
-    String.raw`(?:^|[\s;&|(])(?:\./)?(?:mvnw?|gradlew?|jest|vitest|karma|playwright|cypress|nx|pytest|tox|tsc|make)(?=\s|$)`,
-    String.raw`\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|check|build|lint|e2e)\b`,
+    // `\\` and `.cmd`/`.bat` cover the Windows wrappers (`.\mvnw.cmd`, `gradlew.bat`).
+    String.raw`(?:^|[\s;&|(\\/])(?:mvnw?|gradlew?|jest|vitest|karma|playwright|cypress|nx|pytest|tox|tsc|make)(?=\.(?:cmd|bat)\b|\s|$)`,
+    String.raw`\b(?:npm|pnpm|yarn|bun)\s+(?:-\S+\s+)*(?:run\s+)?(?:t|test|check|build|lint|e2e)\b`,
     String.raw`\bng\s+(?:test|build|lint|e2e)\b`,
     String.raw`\b(?:go|cargo|dotnet)\s+(?:test|build)\b`,
     String.raw`\bclaude\s+plugin\s+test\b`,
@@ -15,10 +16,12 @@ const TEST_COMMAND = new RegExp(
 const FAILURE_PATTERNS = [
   /\bFAIL(ED|URE)?\b/,
   /\d+\s+failing/i,
+  // pytest ("2 failed, 5 passed"), Jest ("Tests: 2 failed") and "3 failures".
+  /\b[1-9]\d*\s+(?:failed|failures?)\b/i,
   /tests?:\s*\d+\s*failed/i,
   /assertionerror/i,
   /BUILD FAILURE/i,
-  /\[ERROR\]\s+(?:Tests run:|Failed to execute goal)/,
+  /\[ERROR\]\s+Failed to execute goal/,
   /Tests run:.*(?:Failures|Errors):\s*[1-9]/,
   /Executed \d+ of \d+.*\bFAILED\b/,
   /[✗✖]/,

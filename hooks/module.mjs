@@ -22,7 +22,8 @@ async function markStruggle($, reason, command) {
 }
 
 export function register(on, options) {
-  const threshold = Math.max(1, Math.floor(Number(options?.threshold)) || DEFAULT_THRESHOLD)
+  // Same 1–20 range the manifest advertises.
+  const threshold = Math.min(20, Math.max(1, Math.floor(Number(options?.threshold)) || DEFAULT_THRESHOLD))
   // 0 switches the context warning off.
   const rawContext = Number(options?.contextThreshold)
   const contextThreshold = Number.isFinite(rawContext) && options?.contextThreshold !== undefined
@@ -102,7 +103,7 @@ export function register(on, options) {
     const consecutiveStruggles = struggled ? prev.consecutiveStruggles + 1 : 0
 
     await update($, metrics, () => ({
-      contextPercent,
+      contextPercent: contextPercent ?? prev.contextPercent,
       lastTurnTokens,
       consecutiveStruggles,
       lastStruggleCommand: struggled ? (command ?? prev.lastStruggleCommand) : null,

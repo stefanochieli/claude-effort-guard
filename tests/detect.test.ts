@@ -56,3 +56,19 @@ test('recognises more runners', () => {
     expect(isTestCommand(cmd)).toBe(true)
   }
 })
+
+test('recognises pytest and Jest failure summaries', () => {
+  expect(looksLikeTestFailure('pytest', '= 2 failed, 5 passed in 1.2s =')).toBe(true)
+  expect(looksLikeTestFailure('npm test', '3 failures')).toBe(true)
+  expect(looksLikeTestFailure('pytest', '= 5 passed in 1.2s =')).toBe(false)
+})
+
+test('a Surefire summary with zero failures and errors is not a failure', () => {
+  expect(looksLikeTestFailure('mvn test', '[ERROR] Tests run: 8, Failures: 0, Errors: 0\n[INFO] BUILD SUCCESS')).toBe(false)
+})
+
+test('recognises Windows wrappers and npm shortcuts', () => {
+  for (const cmd of ['.\\mvnw.cmd test', 'gradlew.bat build', 'npm t', 'pnpm -r test']) {
+    expect(isTestCommand(cmd)).toBe(true)
+  }
+})
