@@ -3,10 +3,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  # Dispatched by release.yml on the release PR branch: a PR opened with
-  # GITHUB_TOKEN does not trigger pull_request workflows, so without this the
-  # required "checks" would never run on it.
-  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -26,9 +22,11 @@ jobs:
           node-version: 22
       - name: JSON syntax
         run: |
-          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json release-please-config.json .release-please-manifest.json .github/protect-main.json; do
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json .github/protect-main.json; do
             node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" && echo "ok $f"
           done
+      - name: Syntax check
+        run: for f in hooks/*.mjs; do node --check "$f"; done
       - name: Install Claude Code (minimum supported)
         run: npm install -g "@anthropic-ai/claude-code@${MIN_CLAUDE_CODE}"
       - name: Validate plugin
@@ -48,6 +46,28 @@ jobs:
           node-version: 22
       - name: Install Claude Code (latest)
         run: npm install -g @anthropic-ai/claude-code@latest
+      - name: Validate plugin
+        run: claude plugin validate .
+      - name: Test plugin
+        run: claude plugin test .
+
+  # The mod is plain JavaScript, but command detection depends on how commands
+  # are spelled (Windows .cmd/.bat, backslashes). Not required: the required
+  # "checks" job stays a single Linux job.
+  compat-os:
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install Claude Code (minimum supported)
+        run: npm install -g "@anthropic-ai/claude-code@${{ env.MIN_CLAUDE_CODE }}"
       - name: Validate plugin
         run: claude plugin validate .
       - name: Test plugin
