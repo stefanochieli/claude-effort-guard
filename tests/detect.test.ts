@@ -142,3 +142,59 @@ test('Surefire summaries with zero failures are not failures; real Maven/Gradle 
   expect(looksLikeTestFailure('mvn compile', '[ERROR] COMPILATION ERROR :')).toBe(true)
   expect(looksLikeTestFailure('./gradlew test', '> Task :test FAILED\n12 tests completed, 1 failed')).toBe(true)
 })
+
+test('recognises runners behind wrappers with value flags and combined -c shells', () => {
+  for (const cmd of [
+    'bash -lc "mvn test"',
+    "sh -ec 'npm test'",
+    'docker exec app bash -lc "./mvnw verify"',
+    'sudo -u ci mvn test',
+    'timeout -s KILL 30 mvn test',
+    'nice -n 10 gradle test',
+    'yarn workspace web test',
+  ]) {
+    expect(isTestCommand(cmd)).toBe(true)
+  }
+  expect(isTestCommand('bash -lc "cat build.log"')).toBe(false)
+})
+
+test('redactCommand hides quoted secrets, curl -u, API-key headers and token URLs', () => {
+  const shown = redactCommand(
+    'export API_TOKEN="my secret tok"; curl -u admin:s3cret -H "X-API-Key: abc123" https://ghp_abc123@github.com/x PASSWORD=\'a b c\' ./run.sh',
+    300,
+  )
+  for (const leak of ['my secret', 'tok"', 's3cret', 'abc123', 'a b c']) {
+    expect(shown).not.toContain(leak)
+  }
+  expect(shown).toContain('./run.sh')
+})
+
+test('applications started by a build tool are not test runs', () => {
+  for (const cmd of ['mvn spring-boot:run', 'mvn clean spring-boot:run', './gradlew bootRun', './gradlew :app:bootRun', 'sbt run']) {
+    expect(isTestCommand(cmd)).toBe(false)
+  }
+  for (const cmd of ['mvn test', './gradlew test', 'mvn clean install']) {
+    expect(isTestCommand(cmd)).toBe(true)
+  }
+})
+
+test('package manager, bundler and compiler failures are recognised when the exit code is swallowed', () => {
+  const cases: Array<[string, string]> = [
+    ['npm test', 'npm ERR! code ELIFECYCLE\nnpm ERR! Test failed.'],
+    ['pnpm test', ' ELIFECYCLE  Test failed.'],
+    ['yarn test', 'error Command failed with exit code 1.'],
+    ['npm run build', 'Failed to compile.\n\n./src/App.js'],
+    ['ng build', 'ERROR in ./src/main.ts\nModule not found'],
+    ['cargo test', 'error: could not compile `app` due to 2 previous errors'],
+    ['cargo build', 'error[E0432]: unresolved import `x`'],
+    ['dotnet build', 'Program.cs(3,1): error CS1002: ; expected'],
+    ['mvn compile', '[ERROR] /src/main/java/Foo.java:[10,5] cannot find symbol'],
+    ['pytest -q', '2 errors in 0.12s'],
+  ]
+  for (const [cmd, out] of cases) {
+    expect(looksLikeTestFailure(cmd, out)).toBe(true)
+  }
+  for (const [cmd, out] of [['npm test', 'error Command failed with exit code 0'], ['pytest -q', '12 passed in 0.12s']]) {
+    expect(looksLikeTestFailure(cmd, out)).toBe(false)
+  }
+})
