@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.5.0] — 2026-11-10
+
+### Novita'
+
+- `/effort-reset` cancella il log e azzera la serie
+- `Write`, `MultiEdit` e `NotebookEdit` falliti contano come `edit_error`
+- il toast di escalation riporta la causa
+- segnali Maven/Gradle: `There are test failures`, `COMPILATION ERROR`, `> Task :x FAILED`; niente falso positivo con `Failures: 0, Errors: 0`
+
+### Correzioni
+
+- per-session log, re-arm-safe context toast, redacted commands
+- recognise more commands and runner output, fewer false positives
+
+### Altro
+
+- docs: describe what is stored, detection limits and the context toast
+- ci: align action versions, add non-blocking macOS and Windows job
+- docs: describe global install, VS Code on another PC and cloud sessions
+- ci: replace release-please with prepare-release, release and release-guard
+- ci: align repo automation with the shared template
+- ci: rename the release workflow to Auto release
+- ci: auto-merge the release PR when RELEASE_PLEASE_TOKEN is set
+
 ## [0.4.0](https://github.com/stefanochieli/claude-effort-guard/compare/v0.3.1...v0.4.0) (2026-10-14)
 
 
