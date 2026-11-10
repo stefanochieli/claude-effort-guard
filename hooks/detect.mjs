@@ -18,6 +18,14 @@ const PKG_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun'])
 const VALUE_FLAGS = new Set(['--prefix', '--cwd', '--filter', '-F', '-C', '--dir', '-w', '--workspace', '--workspaces-root'])
 const SCRIPT_WORDS = /^(?:test|t|check|build|lint|e2e)(?::|$)|^(?:verify|ci)(?::|$)/
 
+// Flags of the wrappers that take a separate value (`sudo -u bob`, `timeout -s KILL 30`, `nice -n 10`).
+const WRAPPER_VALUE_FLAGS = {
+  sudo: new Set(['-u', '-g', '-h', '-p', '-C', '-D', '-R', '-T', '-r', '-t']),
+  timeout: new Set(['-s', '-k', '--signal', '--kill-after']),
+  nice: new Set(['-n']),
+  env: new Set(['-u', '-C', '-S']),
+}
+
 const ENV_ASSIGNMENT = /^[A-Za-z_][\w.]*=\S*$/
 
 function baseName(token) {
@@ -33,7 +41,7 @@ function baseName(token) {
 function simpleCommands(command) {
   const payloads = []
   const withoutPayloads = command.replace(
-    /\b(?:ba|z|da)?sh\s+(?:-\w+\s+)*-c\s+(["'])(.*?)\1|\b(?:pwsh|powershell)(?:\.exe)?\s+(?:-\w+\s+)*-c(?:ommand)?\s+(["'])(.*?)\3/gi,
+    /\b(?:ba|z|da)?sh\s+(?:-\w+\s+)*-[a-z]*c\s+(["'])(.*?)\1|\b(?:pwsh|powershell)(?:\.exe)?\s+(?:-\w+\s+)*-c(?:ommand)?\s+(["'])(.*?)\3/gi,
     (_, _q1, a, _q2, b) => {
       payloads.push(a ?? b)
 
@@ -64,8 +72,8 @@ function isRunnerInvocation(tokens, depth = 0) {
       i += 1
     } else if (WRAPPERS.has(name)) {
       i += 1
-      while (i < tokens.length && (tokens[i].startsWith('-') || (name === 'timeout' && /^\d+[smhd]?$/.test(tokens[i])))) {
-        i += 1
+      while (i < tokens.length && (tokens[i].startsWith('-') || (name === 'timeout' && /^\d+(?:\.\d+)?[smhd]?$/.test(tokens[i])))) {
+        i += WRAPPER_VALUE_FLAGS[name]?.has(tokens[i]) ? 2 : 1
       }
     } else {
       break
@@ -96,7 +104,9 @@ function isRunnerInvocation(tokens, depth = 0) {
         if (VALUE_FLAGS.has(arg) && !arg.includes('=')) {
           k += 1
         }
-      } else if (arg === 'run' || arg === 'run-script' || arg === 'workspaces' || arg === 'workspace') {
+      } else if (arg === 'workspace') {
+        k += 1
+      } else if (arg === 'run' || arg === 'run-script' || arg === 'workspaces') {
         sawRun = sawRun || arg.startsWith('run')
       } else if (arg === 'exec' || arg === 'dlx') {
         return isRunnerInvocation(rest.slice(k + 1), depth + 1)
@@ -210,11 +220,19 @@ export function redactCommand(command, max = 60) {
     return null
   }
 
+  // A secret value is a quoted string (spaces allowed) or a bare word.
+  const value = String.raw`(?:"[^"]*"|'[^']*'|\S+)`
   const clean = command
-    .replace(/\b([\w.-]*(?:TOKEN|KEY|SECRET|PASSWORD|PASSWD|PWD|AUTH|CREDENTIAL)[\w.-]*)=\S+/gi, '$1=***')
+    .replace(new RegExp(String.raw`\b([\w.-]*(?:TOKEN|KEY|SECRET|PASSWORD|PASSWD|PWD|AUTH|CREDENTIAL)[\w.-]*)=${value}`, 'gi'), '$1=***')
     .replace(/\b(Bearer|Basic|Token)\s+[\w.~+/=-]+/gi, '$1 ***')
     .replace(/:\/\/[^/\s:@]+:[^@\s]+@/g, '://***@')
-    .replace(/(--?(?:password|passwd|token|secret|api-?key|auth|pwd)(?:=|\s+))\S+/gi, '$1***')
+    // A token used as the user name of a URL: https://ghp_abc@github.com
+    .replace(/:\/\/(?:gh[pousr]_|github_pat_|glpat-|npm_|xox[abp]-)[\w-]*@/g, '://***@')
+    .replace(new RegExp(String.raw`(--?(?:password|passwd|token|secret|api-?key|auth|pwd)(?:=|\s+))${value}`, 'gi'), '$1***')
+    // curl -u user:password
+    .replace(/(\s(?:-u|--user)(?:=|\s+))[^\s:]+:\S+/g, '$1***')
+    // Headers such as "X-API-Key: abc" (the Authorization one is covered above).
+    .replace(/(\b(?:authorization|x-[\w-]*|api-?key|auth-?token|access-?token)\s*:\s*)[^\s"']+/gi, '$1***')
 
   return clean.length > max ? `${clean.slice(0, max)}…` : clean
 }

@@ -142,3 +142,29 @@ test('Surefire summaries with zero failures are not failures; real Maven/Gradle 
   expect(looksLikeTestFailure('mvn compile', '[ERROR] COMPILATION ERROR :')).toBe(true)
   expect(looksLikeTestFailure('./gradlew test', '> Task :test FAILED\n12 tests completed, 1 failed')).toBe(true)
 })
+
+test('recognises runners behind wrappers with value flags and combined -c shells', () => {
+  for (const cmd of [
+    'bash -lc "mvn test"',
+    "sh -ec 'npm test'",
+    'docker exec app bash -lc "./mvnw verify"',
+    'sudo -u ci mvn test',
+    'timeout -s KILL 30 mvn test',
+    'nice -n 10 gradle test',
+    'yarn workspace web test',
+  ]) {
+    expect(isTestCommand(cmd)).toBe(true)
+  }
+  expect(isTestCommand('bash -lc "cat build.log"')).toBe(false)
+})
+
+test('redactCommand hides quoted secrets, curl -u, API-key headers and token URLs', () => {
+  const shown = redactCommand(
+    'export API_TOKEN="my secret tok"; curl -u admin:s3cret -H "X-API-Key: abc123" https://ghp_abc123@github.com/x PASSWORD=\'a b c\' ./run.sh',
+    300,
+  )
+  for (const leak of ['my secret', 'tok"', 's3cret', 'abc123', 'a b c']) {
+    expect(shown).not.toContain(leak)
+  }
+  expect(shown).toContain('./run.sh')
+})
