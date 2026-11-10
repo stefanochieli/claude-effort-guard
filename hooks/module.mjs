@@ -111,6 +111,10 @@ export function register(on, options) {
       name: 'effort-summary',
       description: 'Print a one-line effort-guard summary of the logged turns',
     })
+    await $.command.register({
+      name: 'effort-reset',
+      description: 'Delete the effort-guard turn log and reset the struggle streak',
+    })
 
     try {
       await pruneLogs($)
@@ -147,15 +151,17 @@ export function register(on, options) {
 
   // A failed edit (e.g. old_string not found) means the model is working from
   // a stale picture of the file.
-  on('tool.call', { tool: 'Edit' }, async ($, e, next) => {
-    const ran = await next(e)
+  for (const tool of ['Edit', 'MultiEdit', 'Write', 'NotebookEdit']) {
+    on('tool.call', { tool }, async ($, e, next) => {
+      const ran = await next(e)
 
-    if (!e.agentId && ran.isError) {
-      await markStruggle($, 'edit_error', null)
-    }
+      if (!e.agentId && ran.isError) {
+        await markStruggle($, 'edit_error', null)
+      }
 
-    return ran
-  })
+      return ran
+    })
+  }
 
   on('turn.complete', async ($, e, next) => {
     if (e.agentId) {
@@ -216,7 +222,8 @@ export function register(on, options) {
     // reload cannot make it fire twice.
     if (consecutiveStruggles === threshold) {
       $.ui.toast(
-        `effort-guard: ${consecutiveStruggles} struggling turns in a row (failed commands/tests)` +
+        `effort-guard: ${consecutiveStruggles} struggling turns in a row (failed commands/tests` +
+          `${reason ? `, last cause: ${reason}` : ''})` +
           `${command ? `, last: ${command.slice(0, TOAST_COMMAND_CHARS)}` : ''}. ` +
           `Consider switching to a stronger model or raising effort one level.`,
       )
@@ -275,6 +282,32 @@ export function register(on, options) {
         `effort-guard: ${list.length} turns, ${struggled.length} struggling` +
         `${top ? ` (most common: ${top[0]})` : ''}, peak context ${peak}%.`,
     }
+  })
+
+  on('command.run', { command: 'effort-reset' }, async $ => {
+    let removed = 0
+    try {
+      const keys = await $.store.keys()
+      for (const key of Array.isArray(keys) ? keys : []) {
+        if (key === LEGACY_LOG_KEY || key.startsWith(LOG_PREFIX)) {
+          await $.store.delete(key)
+          removed += 1
+        }
+      }
+    } catch {
+      return { text: 'effort-guard: the log could not be cleared from the plugin store.' }
+    }
+
+    await update($, metrics, () => ({
+      contextPercent: null,
+      lastKnownContextPercent: null,
+      lastTurnTokens: null,
+      consecutiveStruggles: 0,
+      lastStruggleCommand: null,
+    }))
+    await update($, turn, () => ({ struggled: false, reason: null, command: null }))
+
+    return { text: `effort-guard: log cleared (${removed} stored log${removed === 1 ? '' : 's'}), streak reset.` }
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

@@ -135,3 +135,10 @@ test('redactCommand hides secrets and shortens the command', () => {
   expect(redactCommand('x'.repeat(100), 10)?.length).toBe(11)
   expect(redactCommand(undefined)).toBe(null)
 })
+
+test('Surefire summaries with zero failures are not failures; real Maven/Gradle failures are', () => {
+  expect(looksLikeTestFailure('mvn test', '[ERROR] Tests run: 8, Failures: 0, Errors: 0\n[INFO] BUILD SUCCESS')).toBe(false)
+  expect(looksLikeTestFailure('mvn verify', '[ERROR] There are test failures.')).toBe(true)
+  expect(looksLikeTestFailure('mvn compile', '[ERROR] COMPILATION ERROR :')).toBe(true)
+  expect(looksLikeTestFailure('./gradlew test', '> Task :test FAILED\n12 tests completed, 1 failed')).toBe(true)
+})
