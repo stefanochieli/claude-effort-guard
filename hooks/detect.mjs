@@ -26,6 +26,10 @@ const WRAPPER_VALUE_FLAGS = {
   env: new Set(['-u', '-C', '-S']),
 }
 
+// Goals and tasks that start an application and keep it running: their log is
+// not a test report, and a line starting with "FAILED" there is just a log line.
+const LONG_RUNNING = /^:?(?:[\w.-]+:)*(?:spring-boot:(?:run|start)|quarkus:dev|jetty:run|tomcat\d*:run|exec:java|bootRun|bootTestRun|run)$/
+
 const ENV_ASSIGNMENT = /^[A-Za-z_][\w.]*=\S*$/
 
 function baseName(token) {
@@ -88,7 +92,8 @@ function isRunnerInvocation(tokens, depth = 0) {
   const rest = tokens.slice(i + 1)
 
   if (RUNNERS.has(name)) {
-    return true
+    // `mvn spring-boot:run`, `./gradlew bootRun`: the application's log, not a test run.
+    return !((name.startsWith('mvn') || name.startsWith('gradle') || name === 'sbt') && rest.some(arg => LONG_RUNNING.test(arg)))
   }
 
   if (CONTAINER_WRAPPERS.has(name)) {
@@ -175,6 +180,17 @@ const SUMMARY_PATTERNS = [
   /^\s*Failed tasks:/im,
   /test result: FAILED/,
   /\berror TS\d+:/,
+  // Package managers and bundlers that report the failure of what they ran.
+  /\bELIFECYCLE\b|ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL/,
+  /^error Command failed with exit code [1-9]/m,
+  /^Failed to compile\b/m,
+  /^ERROR in \S/m,
+  // Compilers: cargo, dotnet, javac through Maven.
+  /^error: could not compile\b|^error\[E\d+\]/m,
+  /\berror CS\d+:/,
+  /^\[ERROR\]\s+\S+\.java:\[\d+,\d+\]/m,
+  // pytest -q: "2 errors in 0.12s" (no "===" around it).
+  /^[1-9]\d*\s+errors?\s+in\s+[\d.]+s/m,
 ]
 
 // Bare words and symbols: only at the start of a line (jest "FAIL src/a.test.ts",
