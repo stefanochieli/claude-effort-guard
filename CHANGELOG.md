@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.0] — 2026-11-10
+
+### Novità
+
+- more failure signals, ignore app-run goals, accuracy fixtures
+
+### Correzioni
+
+- recognise bash -lc and wrapper value flags, redact quoted secrets and API-key headers
+
 ## [0.5.0] — 2026-11-10
 
 ### Novita'
