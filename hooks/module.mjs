@@ -16,6 +16,8 @@ const SHOWN_TURNS = 50
 const STORED_COMMAND_CHARS = 120
 const TOAST_COMMAND_CHARS = 60
 
+let sessionCounter = 0
+
 const metrics = atom(
   { plugin: 'effort-guard', key: 'metrics' },
   { contextPercent: null, lastKnownContextPercent: null, lastTurnTokens: null, consecutiveStruggles: 0, lastStruggleCommand: null },
@@ -91,7 +93,9 @@ function logUnavailable(failed) {
 }
 
 export function register(on, options) {
-  const sessionId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`).slice(0, 8)
+  // Only a label that keeps session logs apart, not a secret: when crypto is
+  // missing, a time-and-counter id is enough (and keeps Math.random out).
+  const sessionId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36).slice(-6)}${(sessionCounter += 1).toString(36)}`).slice(0, 8)
   const ownKey = `${LOG_PREFIX}${sessionId}`
   // Same range as the manifest (1-20); anything that is not a number is the default.
   const rawThreshold = Math.floor(Number(options?.threshold))
