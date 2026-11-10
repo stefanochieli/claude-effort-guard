@@ -1,4 +1,5 @@
 import { test, expect, mock } from 'claude-code/testing'
+import { buildCompactHint, withCompactHint } from '../hooks/hints.mjs'
 
 const turnDone = (id: string) => ({ reason: 'answer' as const, answer: '', durationMs: 100, isAborted: false, turnId: id })
 
@@ -274,4 +275,205 @@ test('/effort-reset clears the log and the streak', async ($, on) => {
 
   expect((await $.command.run({ command: 'effort-reset' })).text).toContain('log cleared')
   expect((await $.command.run({ command: 'effort-log' })).text).toContain('no turns logged yet')
+})
+
+// --- harness-efficiency features ---------------------------------------------
+
+const MVN_FAIL = [
+  '[ERROR] com.acme.FooTest.bar -- Time elapsed: 0.01 s <<< FAILURE!',
+  '[ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0',
+  '[INFO] BUILD FAILURE',
+].join('\n')
+
+test('a failing Maven run offers a narrow rerun once, and /effort-rerun returns it', async ($, on) => {
+  const toasts: string[] = []
+  engine(on, { text: MVN_FAIL }, toasts)
+  on('ui.copy', () => ({ value: { isCopied: true } }) as any)
+
+  await runTurn($, 'a', './mvnw verify')
+  await runTurn($, 'b', './mvnw verify')
+
+  const hints = toasts.filter(t => t.includes('rerun only the failing tests'))
+  expect(hints.length).toBe(1)
+  expect(hints[0]).toContain('-Dtest=FooTest#bar')
+
+  const out = (await $.command.run({ command: 'effort-rerun' })).text
+  expect(out).toContain('./mvnw test -Dtest=FooTest#bar')
+  expect(out).toContain('(copied)')
+})
+
+test('the same command failing on consecutive turns is persistent_failure', async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+
+  await runTurn($, 'a')
+  await runTurn($, 'b')
+
+  const lines = (await $.command.run({ command: 'effort-log' })).text.split('\n')
+  expect(lines[0]).toContain('STRUGGLE(test_failure_pattern)')
+  expect(lines[1]).toContain('STRUGGLE(persistent_failure)')
+})
+
+test('reading the same file three times in a turn is read_loop; an edit in between resets it', async ($, on) => {
+  engine(on, { text: 'ok' }, [])
+  on('tool.call', { tool: 'Read' }, () => ({ result: {}, text: 'content' }))
+  on('tool.call', { tool: 'Edit' }, () => ({ result: {}, text: 'ok' }))
+
+  await $.prompt.submit({ text: 'go' })
+  await $.tool.call({ tool: 'Read', file_path: '/a.ts' })
+  await $.tool.call({ tool: 'Read', file_path: '/a.ts' })
+  await $.tool.call({ tool: 'Edit', file_path: '/a.ts', old_string: 'a', new_string: 'b' })
+  await $.tool.call({ tool: 'Read', file_path: '/a.ts' })
+  await $.turn.complete(turnDone('clean'))
+
+  await $.prompt.submit({ text: 'go' })
+  for (let i = 0; i < 3; i++) await $.tool.call({ tool: 'Read', file_path: '/b.ts' })
+  await $.turn.complete(turnDone('loop'))
+
+  const lines = (await $.command.run({ command: 'effort-log' })).text.split('\n')
+  expect(lines[0]).toContain('ok')
+  expect(lines[1]).toContain('STRUGGLE(read_loop)')
+})
+
+test('the /compact hint holds the failing command, the rerun and the files changed', () => {
+  const hint = buildCompactHint({
+    consecutiveStruggles: 2,
+    lastStruggleCommand: 'mvn test',
+    lastStruggleReason: 'persistent_failure',
+    rerunHint: './mvnw test -Dtest=FooTest#bar',
+    touchedFiles: ['/src/Foo.java'],
+  })
+  expect(hint).toContain('The last 2 turn(s) failed (persistent_failure) on: mvn test')
+  expect(hint).toContain('-Dtest=FooTest#bar')
+  expect(hint).toContain('/src/Foo.java')
+  expect(withCompactHint('focus on the API', hint)).toContain('focus on the API\n\neffort-guard:')
+  expect(buildCompactHint({ consecutiveStruggles: 0, lastStruggleCommand: null, touchedFiles: [] })).toBe(null)
+})
+
+const MESSAGES = [{ role: 'user', text: 'fix the build', toolUses: [] }]
+
+test('/compact is told the failing command, the rerun and the files changed', async ($, on) => {
+  engine(on, { text: MVN_FAIL }, [])
+  on('tool.call', { tool: 'Edit' }, () => ({ result: {}, text: 'ok' }))
+  let told: string | undefined
+  on('session.compact', ($: any, e: any) => {
+    told = e.instructions
+
+    return { skip: 'test' }
+  })
+
+  await $.prompt.submit({ text: 'go' })
+  await $.tool.call({ tool: 'Edit', file_path: '/src/Foo.java', old_string: 'a', new_string: 'b' })
+  await $.tool.call({ tool: 'Bash', command: 'mvn test' })
+  await $.turn.complete(turnDone('t'))
+  await $.session.compact({ trigger: 'manual', instructions: 'focus on the API', messages: MESSAGES } as any)
+
+  expect(told).toContain('focus on the API')
+  expect(told).toContain('mvn test')
+  expect(told).toContain('-Dtest=FooTest#bar')
+  expect(told).toContain('/src/Foo.java')
+})
+
+test('compactHints false leaves /compact alone', { options: { compactHints: false } }, async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+  let told: string | undefined = 'unset'
+  on('session.compact', ($: any, e: any) => {
+    told = e.instructions
+
+    return { skip: 'test' }
+  })
+
+  await runTurn($, 'a')
+  await $.session.compact({ trigger: 'manual', messages: MESSAGES } as any)
+
+  expect(told).toBe(undefined)
+})
+
+test('selfCorrect adds a system-prompt section only while the streak is at the threshold', { options: { selfCorrect: true, threshold: 2 } }, async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+  on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' }] }) as any)
+  const compose = () => $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] } as any)
+
+  await runTurn($, 'a')
+  expect((await compose()).sections.map((s: any) => s.id)).toEqual(['intro'])
+
+  await runTurn($, 'b')
+  const sections = (await compose()).sections
+  expect(sections.map((s: any) => s.id)).toEqual(['intro', 'effort-guard:self-correct'])
+  expect(sections[1].text).toContain('change approach')
+})
+
+test('cost and rate limit show in the band; the rate-limit toast fires once', async ($, on) => {
+  const toasts: string[] = []
+  engine(on, { text: 'ok' }, toasts)
+  let used = 50
+  on('session.usage', () => ({ value: { context: { percent: 40, window: 200000 }, cost: { usd: 1.5 }, rateLimits: [{ kind: 'five_hour', percentUsed: used }] } }) as any)
+
+  for (const p of [50, 85, 90]) {
+    used = p
+    await runTurn($, `r${p}`)
+  }
+
+  expect(toasts.filter(t => t.includes('rate limit')).length).toBe(1)
+
+  const band = await $.ui.mount({ plugin: 'effort-guard', surface: 'terminal', component: 'AbovePrompt', props: { hasSurvey: false, bodyColumns: 80 } })
+  const text = (await band.findAll({ type: 'Text' })).map((t: any) => t.text).join(' ')
+  expect(text).toContain('$1.50')
+  expect(text).toContain('limit 90%')
+})
+
+test('the log is per project unless `all` is asked', async ($, on) => {
+  engine(on, { text: 'ok' }, [])
+  on('command.register', () => ({ value: undefined }) as any)
+  on('session.repo', () => ({ value: { root: '/w/api', remote: null, internal: false, name: null } }) as any)
+  on('session.start', ($: any, e: any) => ({ cwd: e.cwd }))
+
+  await $.session.start({ cwd: '/w/api', surface: 'terminal', isInteractive: true } as any)
+  await runTurn($, 'mine')
+
+  const own = (await $.command.run({ command: 'effort-log' })).text
+  expect(own).toContain('p=api')
+})
+
+test('/effort-export writes CSV to a path, or copies JSON', async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+  const written: Record<string, string> = {}
+  on('fs.write', ($: any, e: any) => {
+    written[e.path] = e.text
+
+    return { value: undefined }
+  })
+  let copied = ''
+  on('ui.copy', ($: any, e: any) => {
+    copied = e.text
+
+    return { value: { isCopied: true } }
+  })
+
+  await runTurn($, 'a')
+
+  const res = (await $.command.run({ command: 'effort-export', args: 'out.csv' } as any)).text
+  expect(res).toContain('written to out.csv')
+  expect(Object.entries(written).find(([k]) => k.endsWith('out.csv'))![1].split('\n')[0]).toBe('ts,session,project,contextPercent,lastTurnTokens,costUsd,struggled,reason,consecutiveStruggles')
+
+  expect((await $.command.run({ command: 'effort-export', args: 'json' } as any)).text).toContain('copied as JSON')
+  expect(JSON.parse(copied)[0].reason).toBe('test_failure_pattern')
+})
+
+test('the pane lists the recent turns and the causes', async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+  await runTurn($, 'a')
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const pane = await $.ui.mount({
+      plugin: 'effort-guard',
+      surface,
+      component: 'Pane',
+      requestId: 'effort-guard',
+      props: { title: 'Effort guard', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} },
+    } as any)
+    const text = (await pane.findAll({ type: 'Text' })).map((t: any) => t.text).join('\n')
+    expect(text).toContain('streak 1/3')
+    expect(text).toContain('causes: test_failure_pattern x1')
+    await pane.unmount()
+  }
 })
