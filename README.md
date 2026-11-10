@@ -7,8 +7,8 @@ Mod per Claude Code (>= 2.1.287): banda sopra il prompt con contesto e token, se
 - **Turno faticoso**: un comando Bash in errore (secondo Claude Code: ad esempio un `grep` senza risultati, exit code 1, non è un errore), oppure l'output di un comando di test/build (`npm test`, `pnpm --filter api test`, `ng test`, `mvn`/`mvnw`/`mvnd`, `gradle`, `pytest`, `go test`, `cargo`, `dotnet`, `make`, `tsc`, anche con percorsi, `.cmd`/`.bat` e dentro `bash -c`) che contiene un fallimento (`FAIL` a inizio riga, `N failing`, `N failed`, `BUILD FAILURE`…) anche se l'exit code è 0, per esempio con `| tee` o `|| true`. I comandi dei sub-agent non contano.
 - **Escalation**: al raggiungimento della soglia di turni faticosi consecutivi compare un toast (una sola volta per serie; un turno pulito azzera la serie e lo riarma).
 - **Banda**: `ctx N% | last turn N tok | struggling xN/soglia` sopra il prompt. `tok` è la somma di input, output e token di cache letti e creati dell'ultimo turno: è dominata dal contesto riletto dalla cache, non dal lavoro del solo turno.
-- **`/effort-log`**: ultimi 50 turni (`s=` è la sessione che li ha scritti); il registro è nello store del plugin, una chiave per sessione, e resta tra una sessione e l'altra (ultime 20 sessioni, 500 turni ciascuna). Mostra i turni di tutte le sessioni e di tutti i progetti. **`/effort-summary`**: riepilogo in una riga (turni, turni faticosi, motivo più frequente, picco di contesto).
-- **Altri segnali**: un `Edit` fallito e lo stesso comando che fallisce due volte nello stesso turno (`repeated_error`) contano come fatica; il toast riporta l'ultimo comando fallito, abbreviato a 60 caratteri e con token, password e credenziali negli URL oscurati.
+- **`/effort-log`**: ultimi 50 turni (`s=` è la sessione che li ha scritti); il registro è nello store del plugin, una chiave per sessione, e resta tra una sessione e l'altra (ultime 20 sessioni, 500 turni ciascuna). Mostra i turni di tutte le sessioni e di tutti i progetti. **`/effort-summary`**: riepilogo in una riga (turni, turni faticosi, motivo più frequente, picco di contesto). **`/effort-reset`**: cancella il registro e azzera la serie.
+- **Altri segnali**: un `Edit`/`MultiEdit`/`Write` fallito e lo stesso comando che fallisce due volte nello stesso turno (`repeated_error`) contano come fatica; il toast riporta la causa (`reason`) e l'ultimo comando fallito, abbreviato a 60 caratteri e con token, password e credenziali negli URL oscurati.
 - **Falsi positivi ridotti**: `0 failed` / `Failures: 0` non contano; si guardano solo le ultime 4000 battute dell'output, senza codici colore; le parole `FAIL`/`FAILED` e i simboli ✗ ✖ ✘ contano solo a inizio riga (un test verde chiamato "handles FAILED login" non è un fallimento). Il riconoscimento del testo è coperto da test per Surefire, Karma, Playwright, Cypress, nx, dotnet, pytest, vitest, tsc e cargo, ma è euristico: non c'è un benchmark di accuratezza.
 
 ### Impostazioni
@@ -23,7 +23,7 @@ Mod per Claude Code (>= 2.1.287): banda sopra il prompt con contesto e token, se
 - **Log persistente** (store del plugin, gestito da Claude Code): per ogni turno data, percentuale di contesto, token, se faticoso, motivo, serie e id breve della sessione. Mai comandi, output, prompt o percorsi.
 - **Stato di sessione**: l'ultimo comando fallito, oscurato (token, password e credenziali negli URL) e abbreviato a 120 caratteri.
 - **Toast**: lo stesso comando, abbreviato a 60 caratteri, solo a schermo.
-- **Rete**: nessuna. Non c'è un comando per cancellare il log: si elimina rimuovendo i dati del plugin.
+- **Rete**: nessuna. Il log si cancella con `/effort-reset`.
 
 ## Installazione
 

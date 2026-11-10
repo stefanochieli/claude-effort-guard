@@ -253,3 +253,25 @@ test('an unreadable store is reported, not shown as an empty log', async ($, on)
   expect(out).toContain('could not be read')
   expect(out).not.toContain('no turns logged yet')
 })
+
+test('a failed Write counts as an edit_error and the toast names the cause', { options: { threshold: 1 } }, async ($, on) => {
+  const toasts: string[] = []
+  engine(on, { text: 'ok' }, toasts)
+  on('tool.call', { tool: 'Write' }, () => ({ result: { stdout: '', stderr: 'boom' }, text: 'boom', isError: true }))
+
+  await $.prompt.submit({ text: 'go' })
+  await $.tool.call({ tool: 'Write', path: 'a.txt' })
+  await $.turn.complete(turnDone('w'))
+
+  expect(toasts.length).toBe(1)
+  expect(toasts[0]).toContain('last cause: edit_error')
+})
+
+test('/effort-reset clears the log and the streak', async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+  await runTurn($, 'a')
+  await runTurn($, 'b')
+
+  expect((await $.command.run({ command: 'effort-reset' })).text).toContain('log cleared')
+  expect((await $.command.run({ command: 'effort-log' })).text).toContain('no turns logged yet')
+})
