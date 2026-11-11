@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.0] — 2026-11-11
+
+### Novità
+
+- comando ristretto per rilanciare solo i test falliti (Maven, Gradle, Jest, Vitest, Angular, pytest), con toast e `/effort-rerun`
+- suggerimenti per `/compact`: comando fallito, rerun e file toccati (opzione `compactHints`)
+- auto-correzione opzionale nel prompt (opzione `selfCorrect`, spenta di default)
+- costo di sessione e limite di rate nella banda, con toast oltre la soglia `rateLimitThreshold`
+- nuove cause di escalation: `persistent_failure` e `read_loop`
+- log per progetto, `/effort-export` (CSV o JSON) e `/effort-pane`
+
 ## [0.6.0] — 2026-11-10
 
 ### Novità
