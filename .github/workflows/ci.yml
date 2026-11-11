@@ -22,7 +22,7 @@ jobs:
           node-version: 22
       - name: JSON syntax
         run: |
-          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json .github/protect-main.json; do
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json .github/protect-main.json .claude/settings.json; do
             node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" && echo "ok $f"
           done
       - name: Syntax check

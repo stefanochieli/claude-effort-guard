@@ -25,9 +25,13 @@ Si lavora su `develop`; si rilascia con una PR `develop` → `main` (merge commi
 
 Con il secret `RELEASE_PAT` (PAT con `contents` e `pull-requests` in scrittura) i check partono da soli sulla PR creata da `prepare-release`; senza, le PR aperte con `GITHUB_TOKEN` non fanno partire i workflow e serve il bypass della ruleset da parte di un admin.
 
+Le regole per lavorare sul repo con Claude Code sono in [.claude/CLAUDE.md](.claude/CLAUDE.md); `.claude/settings.json` pre-autorizza `claude plugin validate/test` e `node --check`.
+
 ## Struttura
 
-- `hooks/module.mjs`: la mod (hook, comando `/effort-log`, banda sopra il prompt).
+- `hooks/module.mjs`: la mod (hook, comandi `/effort-*`, banda sopra il prompt, pane).
 - `hooks/detect.mjs`: riconoscimento dei comandi di test e dei pattern di fallimento.
+- `hooks/rerun.mjs`: comando ristretto che rilancia solo i test falliti.
+- `hooks/hints.mjs`: testi per `/compact` e per l'auto-correzione del modello.
 - `types/index.d.ts`: contratto dello stato (`$.state`).
 - `tests/`: test eseguiti da `claude plugin test .`.

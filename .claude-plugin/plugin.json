@@ -22,6 +22,26 @@
       "default": 80,
       "min": 0,
       "max": 100
+    },
+    "rateLimitThreshold": {
+      "type": "number",
+      "title": "Rate-limit warning (%)",
+      "description": "Show a one-off toast when a rate-limit window first reaches this percentage. 0 turns it off.",
+      "default": 80,
+      "min": 0,
+      "max": 100
+    },
+    "compactHints": {
+      "type": "boolean",
+      "title": "Hints for /compact",
+      "description": "Tell the summarizer which command was failing, the narrow rerun and the files changed, so compaction keeps them.",
+      "default": true
+    },
+    "selfCorrect": {
+      "type": "boolean",
+      "title": "Self-correction prompt",
+      "description": "While the struggle streak is at or past the threshold, add a short system-prompt section asking the model to change approach.",
+      "default": false
     }
   }
 }
