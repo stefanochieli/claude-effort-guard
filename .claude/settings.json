@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude plugin validate:*)",
+      "Bash(claude plugin test:*)",
+      "Bash(node --check:*)",
+      "Bash(node .github/scripts/check-release-version.mjs:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)"
+    ]
+  }
+}
