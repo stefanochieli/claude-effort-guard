@@ -477,3 +477,134 @@ test('the pane lists the recent turns and the causes', async ($, on) => {
     await pane.unmount()
   }
 })
+
+// --- review of 2026-11 ----------------------------------------------------------
+
+test('an interrupted turn leaves the streak as it was; a struggling one still counts', async ($, on) => {
+  const toasts: string[] = []
+  const state = { text: '1 failing' }
+  engine(on, state, toasts)
+
+  await runTurn($, 'a')
+  state.text = 'ok'
+  await $.prompt.submit({ text: 'go' })
+  await $.turn.complete({ ...turnDone('b'), reason: 'aborted', isAborted: true })
+
+  let log = (await $.command.run({ command: 'effort-log' })).text.split('\n')
+  expect(log[1]).toContain('streak=1')
+  expect(log[1]).toContain('ok(aborted)')
+
+  await runTurn($, 'c')
+  log = (await $.command.run({ command: 'effort-log' })).text.split('\n')
+  expect(log[2]).toContain('streak=0')
+})
+
+test('a message sent mid-turn keeps the failure already recorded', async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+
+  await $.prompt.submit({ text: 'go' })
+  await $.tool.call({ tool: 'Bash', command: 'npm test' })
+  await $.prompt.submit({ text: 'and also this' })
+  await $.turn.complete(turnDone('mid'))
+
+  expect((await $.command.run({ command: 'effort-log' })).text).toContain('STRUGGLE(')
+})
+
+test('a command that fails and then passes in the same turn is not a struggle', async ($, on) => {
+  const state = { text: '1 failing' }
+  engine(on, state, [])
+
+  await $.prompt.submit({ text: 'go' })
+  await $.tool.call({ tool: 'Bash', command: 'npm test' })
+  state.text = 'ok'
+  await $.tool.call({ tool: 'Bash', command: 'npm test' })
+  await $.turn.complete(turnDone('fixed'))
+
+  expect((await $.command.run({ command: 'effort-log' })).text).toContain('streak=0')
+})
+
+test('reading a file in blocks is not a read_loop; the same block three times is', async ($, on) => {
+  toolFloors(on, [], { text: 'ok' })
+  on('tool.call', { tool: 'Read' }, () => ({ result: { ok: true }, text: 'x' }))
+
+  await $.prompt.submit({ text: 'go' })
+  for (const offset of [0, 200, 400, 600]) await $.tool.call({ tool: 'Read', file_path: '/a.ts', offset, limit: 200 } as any)
+  await $.turn.complete(turnDone('blocks'))
+  expect((await $.command.run({ command: 'effort-log' })).text).toContain('streak=0')
+
+  await $.prompt.submit({ text: 'go' })
+  for (let i = 0; i < 3; i++) await $.tool.call({ tool: 'Read', file_path: '/a.ts', offset: 0, limit: 200 } as any)
+  await $.turn.complete(turnDone('same'))
+  expect((await $.command.run({ command: 'effort-log' })).text).toContain('STRUGGLE(read_loop)')
+})
+
+test('the toast comes again at each multiple of the threshold', { options: { threshold: 2 } }, async ($, on) => {
+  const toasts: string[] = []
+  engine(on, { text: '1 failing' }, toasts)
+
+  for (let i = 0; i < 5; i++) await runTurn($, `m${i}`)
+
+  expect(toasts.filter(t => t.includes('struggling turns')).length).toBe(2)
+})
+
+test('an empty threshold option is the default, not 1', { options: { threshold: '' } }, async ($, on) => {
+  const toasts: string[] = []
+  engine(on, { text: '1 failing' }, toasts)
+
+  for (let i = 0; i < 2; i++) await runTurn($, `n${i}`)
+  expect(toasts.length).toBe(0)
+  await runTurn($, 'n2')
+  expect(toasts.filter(t => t.includes('3 struggling turns')).length).toBe(1)
+})
+
+test('a tool that throws still counts as a struggle, and the error goes on', async ($, on) => {
+  mock.store(on)
+  on('prompt.submit', ($: any, e: any) => ({ text: e.text }))
+  on('turn.complete', ($: any, e: any) => ({ text: e.answer }))
+  on('tool.call', { tool: 'Bash' }, () => {
+    throw new Error('boom')
+  })
+
+  await $.prompt.submit({ text: 'go' })
+  await $.tool.call({ tool: 'Bash', command: 'npm test' }).catch(() => {})
+  await $.turn.complete(turnDone('throws'))
+
+  expect((await $.command.run({ command: 'effort-log' })).text).toContain('STRUGGLE(bash_error)')
+})
+
+test('/effort-export is for this project unless `all` is given, and `all` is not a path', async ($, on) => {
+  engine(on, { text: 'ok' }, [])
+  let copied = ''
+  on('ui.copy', ($: any, e: any) => {
+    copied = e.text
+
+    return { value: { isCopied: true } }
+  })
+  const written: string[] = []
+  on('fs.write', ($: any, e: any) => {
+    written.push(e.path)
+
+    return { value: undefined }
+  })
+
+  on('session.repo', () => ({ value: { root: '/w/api', remote: null, internal: false, name: null } }) as any)
+  on('session.start', ($: any, e: any) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/w/api', surface: 'terminal', isInteractive: true } as any)
+  await runTurn($, 'p')
+
+  expect((await $.command.run({ command: 'effort-export', args: 'all json' } as any)).text).toContain('copied as JSON')
+  expect(JSON.parse(copied).length).toBe(1)
+  expect(written.length).toBe(0)
+})
+
+test('/effort-summary gives the share of struggling turns and the cost', async ($, on) => {
+  toolFloors(on, [], { text: '1 failing' })
+  on('session.usage', () => ({ value: { context: { percent: 10 }, cost: { usd: 1.5 } } }) as any)
+
+  await runTurn($, 'a')
+  await runTurn($, 'b')
+
+  const out = (await $.command.run({ command: 'effort-summary' })).text
+  expect(out).toContain('(100%: test_failure_pattern x1, persistent_failure x1)')
+  expect(out).toContain('cost $1.50')
+})

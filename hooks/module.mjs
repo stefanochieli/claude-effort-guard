@@ -58,6 +58,8 @@ const CLEAN_TURN = { struggled: false, reason: null, command: null, reads: {}, r
 // Reasons that say more than a plain failure, strongest first: a weaker one
 // never replaces a stronger one within a turn.
 const RANK = { repeated_error: 4, persistent_failure: 3, read_loop: 2 }
+// Failures of a command that a later success of the same command undoes.
+const RECOVERABLE = new Set(['bash_error', 'test_failure_pattern', 'repeated_error'])
 
 // Marks the current turn as struggling. The same command failing twice in a
 // turn is a loop, which is worth telling apart from two different failures.
@@ -79,6 +81,41 @@ async function markStruggle($, reason, command, extra = {}) {
       command: command ?? current.command,
     }
   })
+}
+
+// A toast is cosmetic: a host without one must not cost the rest of the hook.
+function toast($, text) {
+  try {
+    $.ui.toast(text)
+  } catch {}
+}
+
+// Runs the tools beneath; when they throw instead of answering `isError`, the
+// turn still counts as a struggle, and the error goes on unchanged.
+async function callNext(next, e, onThrow) {
+  try {
+    return await next(e)
+  } catch (err) {
+    try {
+      if (!e.agentId) {
+        await onThrow()
+      }
+    } catch {}
+
+    throw err
+  }
+}
+
+// Reads of one file are counted per range, so that paging through a large
+// file in blocks is not a loop; a successful edit clears every range of it.
+function readKey(e) {
+  const range = [e.offset, e.limit, e.pages].filter(v => v !== undefined && v !== null)
+
+  return range.length > 0 ? `${e.file_path}@${range.join(':')}` : e.file_path
+}
+
+function withoutReads(reads, path) {
+  return Object.fromEntries(Object.entries(reads ?? {}).filter(([key]) => key !== path && !key.startsWith(`${path}@`)))
 }
 
 function basename(path) {
@@ -170,10 +207,12 @@ function money(usd) {
   return typeof usd === 'number' ? `$${usd.toFixed(2)}` : null
 }
 
+// An option left empty (`null`, `''`) is the default, not 0.
 function readOption(options, key, fallback, min, max) {
-  const raw = Number(options?.[key])
+  const given = options?.[key]
+  const raw = Number(given)
 
-  return Number.isFinite(raw) && options?.[key] !== undefined ? Math.min(max, Math.max(min, Math.floor(raw))) : fallback
+  return given !== undefined && given !== null && given !== '' && Number.isFinite(raw) ? Math.min(max, Math.max(min, Math.floor(raw))) : fallback
 }
 
 function readFlag(options, key, fallback) {
@@ -188,8 +227,7 @@ export function register(on, options) {
   const sessionId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36).slice(-6)}${(sessionCounter += 1).toString(36)}`).slice(0, 8)
   const ownKey = `${LOG_PREFIX}${sessionId}`
   // Same range as the manifest (1-20); anything that is not a number is the default.
-  const rawThreshold = Math.floor(Number(options?.threshold))
-  const threshold = Number.isFinite(rawThreshold) ? Math.min(MAX_THRESHOLD, Math.max(1, rawThreshold)) : DEFAULT_THRESHOLD
+  const threshold = readOption(options, 'threshold', DEFAULT_THRESHOLD, 1, MAX_THRESHOLD)
   // 0 switches the context and rate-limit warnings off.
   const contextThreshold = readOption(options, 'contextThreshold', DEFAULT_CONTEXT_THRESHOLD, 0, 100)
   const rateLimitThreshold = readOption(options, 'rateLimitThreshold', DEFAULT_RATE_LIMIT_THRESHOLD, 0, 100)
@@ -204,11 +242,13 @@ export function register(on, options) {
       ['effort-summary', 'Print a one-line effort-guard summary of this project (`all` for every project)'],
       ['effort-reset', 'Delete the effort-guard turn log and reset the struggle streak'],
       ['effort-rerun', 'Copy the command that reruns only the last failed tests'],
-      ['effort-export', 'Copy the log as CSV (`json` for JSON; a path writes a file instead)'],
+      ['effort-export', 'Copy this project\'s log as CSV (`json` for JSON, `all` for every project; a path writes a file instead)'],
       ['effort-pane', 'Open the effort-guard pane: context, cost and struggles per turn'],
     ]
     for (const [name, description] of commands) {
-      await $.command.register({ name, description })
+      try {
+        await $.command.register({ name, description })
+      } catch {}
     }
 
     try {
@@ -228,22 +268,20 @@ export function register(on, options) {
     return next(e)
   })
 
-  on('prompt.submit', async ($, e, next) => {
-    await update($, turn, () => ({ ...CLEAN_TURN }))
-
-    return next(e)
-  })
+  // The turn's state is cleared when the turn completes (any reason, aborted
+  // ones included), not at `prompt.submit`: a message sent while a turn runs
+  // would otherwise wipe the failures it has already recorded.
 
   on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
-    const ran = await next(e)
+    // Commands can carry secrets: only a redacted, shortened copy is kept.
+    const safeCommand = redactCommand(e.command, STORED_COMMAND_CHARS)
+    const ran = await callNext(next, e, () => markStruggle($, 'bash_error', safeCommand))
 
     // A subagent's commands are not the user-visible turn's struggle.
     if (e.agentId) {
       return ran
     }
 
-    // Commands can carry secrets: only a redacted, shortened copy is kept.
-    const safeCommand = redactCommand(e.command, STORED_COMMAND_CHARS)
     const failed = ran.isError || looksLikeTestFailure(e.command, ran.text)
 
     if (failed) {
@@ -253,6 +291,17 @@ export function register(on, options) {
         rerun = redactCommand(suggestRerun(e.command, ran.text), RERUN_CHARS)
       } catch {}
       await markStruggle($, ran.isError ? 'bash_error' : 'test_failure_pattern', safeCommand, rerun ? { rerun } : {})
+    } else if (safeCommand) {
+      // The command that failed earlier in this turn now passes: the model
+      // fixed it, which is the loop working, not a struggle.
+      const pending = await read($, turn)
+      if (pending.struggled && pending.command === safeCommand && RECOVERABLE.has(pending.reason)) {
+        await update($, turn, current =>
+          current.struggled && current.command === safeCommand && RECOVERABLE.has(current.reason)
+            ? { ...CLEAN_TURN, reads: current.reads ?? {} }
+            : current,
+        )
+      }
     }
 
     return ran
@@ -263,7 +312,7 @@ export function register(on, options) {
   // and clears the file's read count.
   for (const tool of EDIT_TOOLS) {
     on('tool.call', { tool }, async ($, e, next) => {
-      const ran = await next(e)
+      const ran = await callNext(next, e, () => markStruggle($, 'edit_error', null))
 
       if (e.agentId) {
         return ran
@@ -274,10 +323,7 @@ export function register(on, options) {
         await markStruggle($, 'edit_error', null)
       } else if (typeof path === 'string') {
         await update($, turn, current => {
-          const reads = { ...(current.reads ?? {}) }
-          delete reads[path]
-
-          return { ...CLEAN_TURN, ...current, reads }
+          return { ...CLEAN_TURN, ...current, reads: withoutReads(current.reads, path) }
         })
         await update($, metrics, m => ({
           ...m,
@@ -297,11 +343,12 @@ export function register(on, options) {
       return ran
     }
 
+    const key = readKey(e)
     let count = 0
     await update($, turn, current => {
-      count = ((current.reads ?? {})[path] ?? 0) + 1
+      count = ((current.reads ?? {})[key] ?? 0) + 1
 
-      return { ...CLEAN_TURN, ...current, reads: { ...(current.reads ?? {}), [path]: count } }
+      return { ...CLEAN_TURN, ...current, reads: { ...(current.reads ?? {}), [key]: count } }
     })
     if (count === READ_LOOP) {
       await markStruggle($, 'read_loop', null)
@@ -346,8 +393,12 @@ export function register(on, options) {
     const persistent =
       struggled && !!command && prev.consecutiveStruggles > 0 && prev.lastStruggleCommand === command && current.reason !== 'repeated_error'
     const reason = persistent ? 'persistent_failure' : current.reason
-    const consecutiveStruggles = struggled ? prev.consecutiveStruggles + 1 : 0
-    const rerunHint = struggled ? (current.rerun ?? prev.rerunHint ?? null) : null
+    // An interrupted turn, an API error or a refusal says nothing about the
+    // streak: a clean one resets it, a struggling one still counts.
+    const ended = e.reason && e.reason !== 'answer' ? e.reason : null
+    const neutral = !struggled && ended !== null
+    const consecutiveStruggles = struggled ? prev.consecutiveStruggles + 1 : neutral ? prev.consecutiveStruggles : 0
+    const rerunHint = struggled ? (current.rerun ?? prev.rerunHint ?? null) : neutral ? (prev.rerunHint ?? null) : null
 
     await update($, metrics, m => ({
       ...m,
@@ -356,8 +407,8 @@ export function register(on, options) {
       lastKnownContextPercent: contextPercent ?? prev.lastKnownContextPercent ?? null,
       lastTurnTokens,
       consecutiveStruggles,
-      lastStruggleCommand: struggled ? (command ?? prev.lastStruggleCommand) : null,
-      lastStruggleReason: struggled ? reason : null,
+      lastStruggleCommand: struggled ? (command ?? prev.lastStruggleCommand) : neutral ? prev.lastStruggleCommand : null,
+      lastStruggleReason: struggled ? reason : neutral ? (prev.lastStruggleReason ?? null) : null,
       costUsd: costUsd ?? prev.costUsd ?? null,
       rateLimitPercent,
       lastKnownRateLimitPercent: rateLimitPercent ?? prev.lastKnownRateLimitPercent ?? null,
@@ -376,6 +427,7 @@ export function register(on, options) {
       struggled,
       reason,
       consecutiveStruggles,
+      ...(ended ? { ended } : {}),
     }
 
     await update($, recent, list => [...(Array.isArray(list) ? list : []), entry].slice(-RECENT_TURNS))
@@ -387,11 +439,12 @@ export function register(on, options) {
       await $.store.set(ownKey, [...list, entry].slice(-LOG_LIMIT))
     } catch {}
 
-    // Once per streak: fires when the streak reaches the threshold, and again
-    // only after a clean turn has reset it. Derived from $.state, so a hot
-    // reload cannot make it fire twice.
-    if (consecutiveStruggles === threshold) {
-      $.ui.toast(
+    // Fires when the streak reaches the threshold, and again at each further
+    // multiple of it (3, 6, 9...) while it goes on. Derived from $.state, so a
+    // hot reload cannot make it fire twice.
+    if (struggled && consecutiveStruggles % threshold === 0) {
+      toast(
+        $,
         `effort-guard: ${consecutiveStruggles} struggling turns in a row (failed commands/tests` +
           `${reason ? `, last cause: ${reason}` : ''})` +
           `${command ? `, last: ${command.slice(0, TOAST_COMMAND_CHARS)}` : ''}. ` +
@@ -401,7 +454,7 @@ export function register(on, options) {
 
     // A narrower rerun, offered once per distinct suggestion.
     if (current.rerun && current.rerun !== prev.rerunHint) {
-      $.ui.toast(`effort-guard: rerun only the failing tests: ${current.rerun.slice(0, 120)} (/effort-rerun copies it)`)
+      toast($, `effort-guard: rerun only the failing tests: ${current.rerun.slice(0, 120)} (/effort-rerun copies it)`)
     }
 
     // Fires once, when the context first crosses the limit.
@@ -411,7 +464,7 @@ export function register(on, options) {
       contextPercent >= contextThreshold &&
       (prev.lastKnownContextPercent ?? 0) < contextThreshold
     ) {
-      $.ui.toast(`effort-guard: context at ${contextPercent}%. Consider /compact or starting a fresh session.`)
+      toast($, `effort-guard: context at ${contextPercent}%. Consider /compact or starting a fresh session.`)
     }
 
     // Fires once, when a rate-limit window first crosses the limit.
@@ -421,7 +474,8 @@ export function register(on, options) {
       rateLimitPercent >= rateLimitThreshold &&
       (prev.lastKnownRateLimitPercent ?? 0) < rateLimitThreshold
     ) {
-      $.ui.toast(
+      toast(
+        $,
         `effort-guard: rate limit at ${rateLimitPercent}%. Prefer a lighter model or lower effort for routine work.`,
       )
     }
@@ -479,7 +533,7 @@ export function register(on, options) {
     }
 
     const lines = list.slice(-SHOWN_TURNS).map(e => {
-      const flag = e.struggled ? `STRUGGLE(${e.reason})` : 'ok'
+      const flag = e.struggled ? `STRUGGLE(${e.reason})` : e.ended ? `ok(${e.ended})` : 'ok'
       const cost = money(e.costUsd)
 
       return `${e.ts}  s=${e.session ?? '-'}${e.project ? `  p=${e.project}` : ''}  ctx=${e.contextPercent ?? '?'}%  tok=${e.lastTurnTokens ?? '?'}${cost ? `  ${cost}` : ''}  streak=${e.consecutiveStruggles}  ${flag}`
@@ -508,11 +562,24 @@ export function register(on, options) {
     const top = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0]
     const peak = Math.max(0, ...list.map(e => e.contextPercent ?? 0))
     const scope = /\ball\b/i.test(e?.args ?? '') || !project ? '' : ` in ${project}`
+    // Each entry carries the session's running cost: a session's total is its highest.
+    const perSession = {}
+    for (const e of list) {
+      if (typeof e.costUsd === 'number') {
+        perSession[e.session ?? '-'] = Math.max(perSession[e.session ?? '-'] ?? 0, e.costUsd)
+      }
+    }
+    const cost = Object.keys(perSession).length > 0 ? money(Object.values(perSession).reduce((a, b) => a + b, 0)) : null
+    const causes = Object.entries(reasons)
+      .sort((a, b) => b[1] - a[1])
+      .map(([r, n]) => `${r} x${n}`)
+      .join(', ')
 
     return {
       text:
         `effort-guard: ${list.length} turns${scope}, ${struggled.length} struggling` +
-        `${top ? ` (most common: ${top[0]})` : ''}, peak context ${peak}%.`,
+        `${struggled.length > 0 ? ` (${Math.round((struggled.length / list.length) * 100)}%: ${causes})` : ''}` +
+        `${top ? `, most common: ${top[0]}` : ''}, peak context ${peak}%${cost ? `, cost ${cost}` : ''}.`,
     }
   })
 
@@ -565,10 +632,18 @@ export function register(on, options) {
   })
 
   on('command.run', { command: 'effort-export' }, async ($, e) => {
-    const args = (e?.args ?? '').trim()
-    const isJson = /^json\b/i.test(args)
-    const path = args.replace(/^(?:json|csv)\b\s*/i, '').trim()
-    const { list, failed } = await readLogs($, ownKey)
+    // Leading words: `json`, `csv`, `all` (every project), in any order; the rest is a path.
+    const words = (e?.args ?? '').trim().split(/\s+/).filter(Boolean)
+    let isJson = false
+    let isAll = false
+    while (words.length > 0 && /^(?:json|csv|all)$/i.test(words[0])) {
+      const word = words.shift().toLowerCase()
+      isJson = isJson || word === 'json'
+      isAll = isAll || word === 'all'
+    }
+    const path = words.join(' ')
+    const { list: every, failed } = await readLogs($, ownKey)
+    const list = forProject(every, isAll ? 'all' : '', project)
 
     if (list.length === 0) {
       return { text: logUnavailable(failed) }
