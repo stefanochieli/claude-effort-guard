@@ -97,6 +97,48 @@ const fixtures: Array<{ name: string; command: string; fails: boolean; output: s
     fails: false,
     output: 'FAILED to load optional config, using defaults\nStarted App in 3.2 seconds',
   },
+  {
+    name: 'ESLint: warnings only',
+    command: 'npm run lint | cat',
+    fails: false,
+    output: '/src/a.ts\n  1:1  warning  Unexpected console statement  no-console\n\n✖ 2 problems (0 errors, 2 warnings)',
+  },
+  {
+    name: 'ESLint: errors',
+    command: 'npm run lint | cat',
+    fails: true,
+    output: '/src/a.ts\n  1:1  error  x is not defined  no-undef\n\n✖ 3 problems (1 error, 2 warnings)',
+  },
+  {
+    name: 'Jest: green run whose test logs a FAILED line',
+    command: 'npx jest | cat',
+    fails: false,
+    output: '  console.error\n    FAILED to fetch avatar\n\nTest Suites: 2 passed, 2 total\nTests:       5 passed, 5 total',
+  },
+  {
+    name: 'Spring: green build whose log has a FAILED line',
+    command: 'mvn -B test',
+    fails: false,
+    output: 'FAILED to bind optional property\n[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0\n[INFO] BUILD SUCCESS',
+  },
+  {
+    name: 'Jest: failing test marked with a cross',
+    command: 'npx jest | cat',
+    fails: true,
+    output: '  ✕ adds the tax (4 ms)\n  ✓ adds nothing (1 ms)',
+  },
+  {
+    name: 'Vitest: failing test marked with a multiplication sign',
+    command: 'npx vitest run | cat',
+    fails: true,
+    output: ' × total > adds the tax 3ms\n ✓ total > adds nothing 1ms',
+  },
+  {
+    name: 'Angular: template error NG8001',
+    command: 'ng build | cat',
+    fails: true,
+    output: 'Error: src/app/a.html:1:1 - error NG8001: \'app-x\' is not a known element',
+  },
 ]
 
 for (const f of fixtures) {

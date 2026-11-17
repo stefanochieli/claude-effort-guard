@@ -45,3 +45,22 @@ test('nothing to target: no suggestion', () => {
   expect(suggestRerun('cat log', 'FAIL src/a.spec.ts')).toBe(null)
   expect(suggestRerun(undefined as any, 'x')).toBe(null)
 })
+
+test('a cd before the runner is kept, and so is -f', () => {
+  const out = '[ERROR]   FooTest.bar:42 expected: <1> but was: <2>'
+  expect(suggestRerun('cd backend && ./mvnw test | tee b.log', out)).toBe(
+    'cd backend && ./mvnw test -Dtest=FooTest#bar -Dsurefire.failIfNoSpecifiedTests=false',
+  )
+  expect(suggestRerun('mvn -f backend/pom.xml test', out)).toBe(
+    'mvn -f backend/pom.xml test -Dtest=FooTest#bar -Dsurefire.failIfNoSpecifiedTests=false',
+  )
+  expect(suggestRerun('cd web && npx jest', 'FAIL src/a.spec.ts')).toBe('cd web && npx jest src/a.spec.ts')
+  expect(suggestRerun('cd api && pytest -q', 'FAILED tests/test_a.py::test_x - Err')).toBe('cd api && pytest tests/test_a.py::test_x')
+})
+
+test('Maven: unit tests and ITs failing together get both properties', () => {
+  const out = '[ERROR]   FooIT.bar:42 x\n[ERROR]   AuditTest.baz:1 y'
+  expect(suggestRerun('mvn verify', out)).toBe(
+    'mvn verify -Dtest=AuditTest#baz -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=FooIT#bar -Dfailsafe.failIfNoSpecifiedTests=false',
+  )
+})

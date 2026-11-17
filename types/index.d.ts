@@ -31,7 +31,7 @@ export type Turn = {
   struggled: boolean
   reason: Reason | null
   command: string | null
-  /** Reads per file path in this turn, reset by a successful edit of the file. */
+  /** Reads per file path (and per offset/limit range) in this turn, reset by a successful edit of the file. */
   reads?: Record<string, number>
   rerun?: string | null
 }
@@ -48,6 +48,8 @@ export type LogEntry = {
   struggled: boolean
   reason: Reason | null
   consecutiveStruggles: number
+  /** Why the turn ended when it was not an answer; such a turn leaves the streak as it was. */
+  ended?: 'aborted' | 'error' | 'refusal'
 }
 
 declare module 'claude-code' {

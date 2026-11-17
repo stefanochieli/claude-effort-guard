@@ -1,3 +1,5 @@
+import { isTestCommand } from './detect.mjs'
+
 // Builds a narrower command that reruns only the tests a runner reported as
 // failed, so the next attempt costs seconds instead of a whole build.
 // Pure functions: the module decides when to show the result.
@@ -19,6 +21,17 @@ function quote(arg) {
 // follows a pipe or `||` (`mvn test | tee log` -> `mvn test`).
 function head(command) {
   return command.split(/\|\||&&|[|;]/).map(part => part.trim()).find(Boolean) ?? ''
+}
+
+// The part of the command line that ran the tests, with the `cd`s before it:
+// `cd backend && ./mvnw test | tee log` -> { line: './mvnw test', prefix: 'cd backend && ' }.
+// Falls back to the first part when none is recognised as a runner.
+function locate(command) {
+  const parts = command.split(/\|\||&&|[|;\n]/).map(part => part.trim()).filter(Boolean)
+  const at = Math.max(0, parts.findIndex(part => isTestCommand(part)))
+  const cds = parts.slice(0, at).filter(part => /^cd\s+\S+$/.test(part))
+
+  return { line: parts[at] ?? '', prefix: cds.map(part => `${part} && `).join('') }
 }
 
 // `com.acme.FooTest` -> `FooTest`; Surefire's -Dtest takes the simple name.
@@ -64,21 +77,27 @@ function mavenRerun(command, text) {
   const keep = []
   for (let i = 0; i < tokens.length; i += 1) {
     const t = tokens[i]
-    if ((t === '-pl' || t === '--projects') && tokens[i + 1]) {
+    if ((t === '-pl' || t === '--projects' || t === '-f' || t === '--file') && tokens[i + 1]) {
       keep.push(t, tokens[i + 1])
       i += 1
     } else if (/^-(?:q|B|o|am)$|^--(?:quiet|batch-mode|offline|also-make)$|^-P\S+/.test(t)) {
       keep.push(t)
     }
   }
-  // Failsafe ITs run under verify with -Dit.test; anything else under test.
-  const isIt = targets.every(t => /IT#/.test(t))
-  const property = isIt ? 'it.test' : 'test'
-  const goal = isIt ? 'verify' : 'test'
+  // Failsafe ITs run under verify with -Dit.test, Surefire's tests with -Dtest;
+  // both kinds failing at once need verify and both properties.
+  const isIt = t => /(?:IT|ITCase)#/.test(t)
+  const units = targets.filter(t => !isIt(t))
+  const its = targets.filter(isIt)
+  const args = []
+  if (units.length > 0) {
+    args.push(`-Dtest=${quote(units.join(','))}`, '-Dsurefire.failIfNoSpecifiedTests=false')
+  }
+  if (its.length > 0) {
+    args.push(`-Dit.test=${quote(its.join(','))}`, '-Dfailsafe.failIfNoSpecifiedTests=false')
+  }
 
-  const plugin = isIt ? 'failsafe' : 'surefire'
-
-  return [runner, ...keep, goal, `-D${property}=${quote(targets.join(','))}`, `-D${plugin}.failIfNoSpecifiedTests=false`].join(' ')
+  return [runner, ...keep, its.length > 0 ? 'verify' : 'test', ...args].join(' ')
 }
 
 function gradleRerun(command, text) {
@@ -147,17 +166,18 @@ export function suggestRerun(command, text) {
   }
 
   const tail = text.slice(-TAIL_CHARS).replace(ANSI, '')
-  const line = head(command)
+  const { line, prefix } = locate(command)
 
+  let rerun
   if (/(?:^|[\s\\/])mvn(?:w|d)?(?:\.cmd)?\b/.test(line)) {
-    return mavenRerun(command, tail)
-  }
-  if (/(?:^|[\s\\/])gradlew?(?:\.bat)?\b/.test(line)) {
-    return gradleRerun(command, tail)
-  }
-  if (/\bpytest\b/.test(line)) {
-    return pytestRerun(command, tail)
+    rerun = mavenRerun(line, tail)
+  } else if (/(?:^|[\s\\/])gradlew?(?:\.bat)?\b/.test(line)) {
+    rerun = gradleRerun(line, tail)
+  } else if (/\bpytest\b/.test(line)) {
+    rerun = pytestRerun(line, tail)
+  } else {
+    rerun = jsRerun(line, tail)
   }
 
-  return jsRerun(command, tail)
+  return rerun ? `${prefix}${rerun}` : null
 }
