@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.0] — 2026-11-17
+
+### Correzioni
+
+- rerun after cd, aborted turns, recovered commands, read ranges, detection and redaction
+
 ## [0.7.0] — 2026-11-11
 
 ### Novità
