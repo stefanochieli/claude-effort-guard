@@ -198,3 +198,44 @@ test('package manager, bundler and compiler failures are recognised when the exi
     expect(looksLikeTestFailure(cmd, out)).toBe(false)
   }
 })
+
+test('recognises the runners behind aliases, bundler, cmd and `--`', () => {
+  for (const cmd of ['ng t', 'ng b', 'npm exec -- jest', 'bundle exec rspec', 'cmd /c "mvn test"', 'npm run typecheck', 'npx mocha']) {
+    expect(isTestCommand(cmd)).toBe(true)
+  }
+})
+
+test('servers and heredoc text are not test runs', () => {
+  for (const cmd of ['nx serve app', 'make run', 'cat <<EOF\nnpm test\nEOF', "cat <<'END' > run.sh\nmvn test\nEND"]) {
+    expect(isTestCommand(cmd)).toBe(false)
+  }
+  expect(isTestCommand('cat <<EOF > a.txt\nhi\nEOF\nmvn test')).toBe(true)
+})
+
+test('redactCommand hides passwords given as short flags, bare tokens and JSON bodies', () => {
+  const shown = redactCommand(
+    [
+      'docker login -u me -p hunter2',
+      'sshpass -p pw1 ssh h',
+      'mysql -uroot -pS3cret db',
+      'export DB_PASS=pw2',
+      'echo ghp_abcdefghijklmnopqrstuvwxyz0123456789 sk-ant-api03-abcdef eyJhbGciOi.eyJzdWIi.sig',
+      "curl -d '{\"password\":\"pw3\"}' https://x?api_key=pw4&page=2",
+      'npm config set //registry.npmjs.org/:_authToken tok5',
+    ].join(' ; '),
+    1000,
+  )
+  for (const leak of ['hunter2', 'pw1', 'S3cret', 'pw2', 'abcdefghijklmnop', 'api03', 'eyJzdWIi', 'pw3', 'pw4', 'tok5']) {
+    expect(shown).not.toContain(leak)
+  }
+  expect(shown).toContain('page=2')
+  // `-p` that is not a password stays readable.
+  expect(redactCommand('mkdir -p out && ssh -p 2222 host')).toBe('mkdir -p out && ssh -p 2222 host')
+})
+
+test('redactCommand stays fast on very long commands', () => {
+  const start = Date.now()
+  redactCommand('a.'.repeat(30000))
+  redactCommand('x-'.repeat(30000) + '=1')
+  expect(Date.now() - start).toBeLessThan(500)
+})
