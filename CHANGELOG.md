@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.9.0] — 2026-11-20
+
+### Novità
+
+- add plugin icon
+
+### Correzioni
+
+- remove selfCorrect so the module loads on every Claude Code version
+
 ## [0.8.0] — 2026-11-17
 
 ### Correzioni
