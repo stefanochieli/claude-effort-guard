@@ -32,6 +32,6 @@ Le regole per lavorare sul repo con Claude Code sono in [.claude/CLAUDE.md](.cla
 - `hooks/module.mjs`: la mod (hook, comandi `/effort-*`, banda sopra il prompt, pane).
 - `hooks/detect.mjs`: riconoscimento dei comandi di test e dei pattern di fallimento.
 - `hooks/rerun.mjs`: comando ristretto che rilancia solo i test falliti.
-- `hooks/hints.mjs`: testi per `/compact` e per l'auto-correzione del modello.
+- `hooks/hints.mjs`: testi per `/compact`.
 - `types/index.d.ts`: contratto dello stato (`$.state`).
 - `tests/`: test eseguiti da `claude plugin test .`.
