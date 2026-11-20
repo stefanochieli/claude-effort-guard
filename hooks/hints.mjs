@@ -31,12 +31,3 @@ export function withCompactHint(instructions, hint) {
 
   return instructions ? `${instructions}\n\n${hint}` : hint
 }
-
-// The system-prompt section asking the model to change approach.
-export function buildSelfCorrect(m) {
-  return [
-    `The last ${m.consecutiveStruggles} turns failed${m.lastStruggleReason ? ` (${m.lastStruggleReason})` : ''}${m.lastStruggleCommand ? ` on \`${m.lastStruggleCommand}\`` : ''}.`,
-    'Stop retrying the same step. Re-read the files involved before editing them, state what you think the cause is, and change approach.',
-    m.rerunHint ? `Run only the failing tests: \`${m.rerunHint}\`.` : 'Run only the failing test, not the whole build.',
-  ].join(' ')
-}

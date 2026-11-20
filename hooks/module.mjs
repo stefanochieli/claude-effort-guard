@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import { looksLikeTestFailure, redactCommand } from './detect.mjs'
 import { suggestRerun } from './rerun.mjs'
-import { buildCompactHint, buildSelfCorrect, withCompactHint } from './hints.mjs'
+import { buildCompactHint, withCompactHint } from './hints.mjs'
 
 const DEFAULT_THRESHOLD = 3
 const MAX_THRESHOLD = 20
@@ -25,7 +25,6 @@ const READ_LOOP = 3
 const RECENT_TURNS = 30
 const TOUCHED_FILES = 10
 const PANE = 'effort-guard'
-const SELF_CORRECT_SECTION = 'effort-guard:self-correct'
 const EDIT_TOOLS = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit']
 
 let sessionCounter = 0
@@ -232,7 +231,6 @@ export function register(on, options) {
   const contextThreshold = readOption(options, 'contextThreshold', DEFAULT_CONTEXT_THRESHOLD, 0, 100)
   const rateLimitThreshold = readOption(options, 'rateLimitThreshold', DEFAULT_RATE_LIMIT_THRESHOLD, 0, 100)
   const compactHints = readFlag(options, 'compactHints', true)
-  const selfCorrect = readFlag(options, 'selfCorrect', false)
   // The project this session works in, for the log; set at session.start.
   let project = null
 
@@ -500,28 +498,6 @@ export function register(on, options) {
     }
 
     return next({ ...e, instructions: withCompactHint(e.instructions, hint) })
-  })
-
-  // Opt-in: while a streak is at or past the threshold, a short section asks
-  // the model to change approach instead of retrying the same thing.
-  if (selfCorrect) on('prompt.compose', async ($, e, next) => {
-    const result = await next(e)
-
-    let m = null
-    try {
-      m = await read($, metrics)
-    } catch {}
-    if (!m || m.consecutiveStruggles < threshold || !Array.isArray(result?.sections)) {
-      return result
-    }
-
-    return {
-      ...result,
-      sections: [
-        ...result.sections.filter(s => s.id !== SELF_CORRECT_SECTION),
-        { id: SELF_CORRECT_SECTION, text: buildSelfCorrect(m), scope: 'session' },
-      ],
-    }
   })
 
   on('command.run', { command: 'effort-log' }, async ($, e) => {

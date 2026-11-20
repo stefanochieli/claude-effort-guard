@@ -388,20 +388,6 @@ test('compactHints false leaves /compact alone', { options: { compactHints: fals
   expect(told).toBe(undefined)
 })
 
-test('selfCorrect adds a system-prompt section only while the streak is at the threshold', { options: { selfCorrect: true, threshold: 2 } }, async ($, on) => {
-  engine(on, { text: '1 failing' }, [])
-  on('prompt.compose', () => ({ sections: [{ id: 'intro', text: 'hi', scope: 'shared' }] }) as any)
-  const compose = () => $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] } as any)
-
-  await runTurn($, 'a')
-  expect((await compose()).sections.map((s: any) => s.id)).toEqual(['intro'])
-
-  await runTurn($, 'b')
-  const sections = (await compose()).sections
-  expect(sections.map((s: any) => s.id)).toEqual(['intro', 'effort-guard:self-correct'])
-  expect(sections[1].text).toContain('change approach')
-})
-
 test('cost and rate limit show in the band; the rate-limit toast fires once', async ($, on) => {
   const toasts: string[] = []
   engine(on, { text: 'ok' }, toasts)

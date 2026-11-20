@@ -13,7 +13,6 @@ Mod per Claude Code (>= 2.1.287): banda sopra il prompt con contesto, costo, rat
 
 - **Rilancio mirato**: quando un test fallisce, effort-guard legge l'output e propone il comando che rilancia solo i test falliti, in un toast (una volta per proposta) e con `/effort-rerun`, che lo copia negli appunti. Maven/Surefire/Failsafe (`./mvnw -pl api test -Dtest=FooTest#bar`, conserva `-pl`, `-f`, `-q`, `-B`, `-P…`; unit test e IT insieme usano `verify` con `-Dtest` e `-Dit.test`), anche dopo un `cd dir &&`, Gradle (`--tests`), Jest, Vitest, `ng test --include`, script npm/pnpm/yarn, pytest.
 - **`/compact` più utile** (`compactHints`, attivo di default): alla compattazione aggiunge alle istruzioni del riassunto il comando che stava fallendo, il rilancio mirato e gli ultimi file modificati, così il riassunto non li perde.
-- **Auto-correzione** (`selfCorrect`, spento di default): quando la serie raggiunge la soglia aggiunge al system prompt una breve sezione che chiede al modello di cambiare approccio (rileggere i file, spiegare la causa, rilanciare solo il test fallito). Sparisce al primo turno pulito.
 
 ### Impostazioni
 
@@ -23,13 +22,12 @@ Mod per Claude Code (>= 2.1.287): banda sopra il prompt con contesto, costo, rat
 | `contextThreshold` | `80` | Toast quando il contesto raggiunge questa percentuale; ricompare solo dopo un calo sotto soglia (per esempio dopo `/compact`), non dopo una lettura mancata. `0` lo disattiva. |
 | `rateLimitThreshold` | `80` | Toast quando una finestra di rate limit raggiunge questa percentuale; stessa logica del contesto. `0` lo disattiva. |
 | `compactHints` | `true` | Suggerimenti al riassunto di `/compact` (vedi sopra). |
-| `selfCorrect` | `false` | Sezione di auto-correzione nel system prompt durante una serie (vedi sopra). |
 
 ### Dati salvati e privacy
 
 - **Log persistente** (store del plugin, gestito da Claude Code): per ogni turno data, percentuale di contesto, token, costo della sessione, se faticoso, motivo, serie, id breve della sessione e nome del progetto. Mai comandi, output, prompt o percorsi.
 - **Stato di sessione** (non persistente): l'ultimo comando fallito e il rilancio mirato, oscurati (token, password e credenziali negli URL) e abbreviati; i percorsi degli ultimi 10 file modificati, per `/compact`.
-- **Verso il modello**: con `compactHints` il riassunto di `/compact` riceve comando, rilancio e percorsi; con `selfCorrect` il system prompt riceve comando e rilancio. Sono dati che il modello ha già visto nella conversazione.
+- **Verso il modello**: con `compactHints` il riassunto di `/compact` riceve comando, rilancio e percorsi. Sono dati che il modello ha già visto nella conversazione.
 - **Toast**: lo stesso comando, abbreviato a 60 caratteri, solo a schermo.
 - **Rete**: nessuna. `/effort-export` scrive un file solo dove indichi tu. Il log si cancella con `/effort-reset`.
 
