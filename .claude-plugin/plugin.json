@@ -5,6 +5,7 @@
   "author": {
     "name": "Stefano Chieli"
   },
+  "icon": "./assets/icon.png",
   "types": "./types/index.d.ts",
   "userConfig": {
     "threshold": {
