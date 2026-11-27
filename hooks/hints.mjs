@@ -31,3 +31,20 @@ export function withCompactHint(instructions, hint) {
 
   return instructions ? `${instructions}\n\n${hint}` : hint
 }
+
+// One line for the model, appended to the result of a failed command: the
+// narrow rerun, and at the streak threshold what to do before the next try.
+// Nothing the model cannot act on (no "raise effort", no "switch model").
+export function buildToolHint({ command, rerun, streak }) {
+  const lines = []
+  if (rerun) {
+    lines.push(`to rerun only the failing tests: ${rerun}`)
+  }
+  if (streak > 0) {
+    lines.push(
+      `${streak} turns in a row failed${command ? ` on ${command}` : ''}. Before the next attempt, reread the first error, write down a hypothesis and change approach; if it does not converge, stop and ask.`,
+    )
+  }
+
+  return lines.length > 0 ? `effort-guard: ${lines.join(' ')}` : null
+}

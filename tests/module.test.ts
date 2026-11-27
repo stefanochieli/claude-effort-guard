@@ -1,5 +1,5 @@
 import { test, expect, mock } from 'claude-code/testing'
-import { buildCompactHint, withCompactHint } from '../hooks/hints.mjs'
+import { buildCompactHint, buildToolHint, withCompactHint } from '../hooks/hints.mjs'
 
 const turnDone = (id: string) => ({ reason: 'answer' as const, answer: '', durationMs: 100, isAborted: false, turnId: id })
 
@@ -593,4 +593,62 @@ test('/effort-summary gives the share of struggling turns and the cost', async (
   const out = (await $.command.run({ command: 'effort-summary' })).text
   expect(out).toContain('(100%: test_failure_pattern x1, persistent_failure x1)')
   expect(out).toContain('cost $1.50')
+})
+
+const PYTEST_FAIL = 'FAILED tests/test_a.py::test_x - AssertionError'
+const ctx = (r: any) => (r as { context?: string[] }).context
+
+test('modelHints on: a red pytest gives the model the narrow rerun, once per turn', { options: { modelHints: true } }, async ($, on) => {
+  engine(on, { text: PYTEST_FAIL }, [])
+  await $.prompt.submit({ text: 'go' })
+
+  const first = await $.tool.call({ tool: 'Bash', command: 'pytest -q' })
+  const second = await $.tool.call({ tool: 'Bash', command: 'pytest -q' })
+
+  expect(ctx(first)?.[0]).toContain('pytest tests/test_a.py::test_x')
+  expect(ctx(first)?.length).toBe(1)
+  expect(ctx(second)).toBe(undefined)
+})
+
+test('modelHints off (default): no context on the result', async ($, on) => {
+  engine(on, { text: PYTEST_FAIL }, [])
+  await $.prompt.submit({ text: 'go' })
+
+  expect(ctx(await $.tool.call({ tool: 'Bash', command: 'pytest -q' }))).toBe(undefined)
+})
+
+test('modelHints on: a passing command and a sub-agent get no context', { options: { modelHints: true } }, async ($, on) => {
+  const state = { text: 'ok' }
+  engine(on, state, [])
+  await $.prompt.submit({ text: 'go' })
+  expect(ctx(await $.tool.call({ tool: 'Bash', command: 'pytest -q' }))).toBe(undefined)
+
+  state.text = PYTEST_FAIL
+  expect(ctx(await $.tool.call({ tool: 'Bash', command: 'pytest -q', agentId: 'sub1' }))).toBe(undefined)
+})
+
+test('modelHints on: the streak line comes in the turn that reaches the threshold, once, and never asks for effort', { options: { modelHints: true } }, async ($, on) => {
+  engine(on, { text: '1 failing' }, [])
+  const seen: (string[] | undefined)[] = []
+
+  for (const id of ['a', 'b', 'c', 'd']) {
+    await $.prompt.submit({ text: 'go' })
+    seen.push(ctx(await $.tool.call({ tool: 'Bash', command: 'npm test' })))
+    // a second failure in the same turn does not repeat the line
+    if (id === 'c') seen.push(ctx(await $.tool.call({ tool: 'Bash', command: 'npm test' })))
+    await $.turn.complete(turnDone(id))
+  }
+
+  // threshold 3: turns a, b quiet; c hints; its repeat and d are quiet.
+  expect(seen[0]).toBe(undefined)
+  expect(seen[1]).toBe(undefined)
+  expect(seen[2]?.[0]).toContain('3 turns in a row failed on npm test')
+  expect(seen[2]?.[0]).not.toMatch(/raise|switch|stronger/i)
+  expect(seen[3]).toBe(undefined)
+  expect(seen[4]).toBe(undefined)
+})
+
+test('buildToolHint: empty without rerun or streak', () => {
+  expect(buildToolHint({ command: 'x', rerun: null, streak: 0 })).toBe(null)
+  expect(buildToolHint({ command: 'x', rerun: 'pytest a', streak: 0 })).toBe('effort-guard: to rerun only the failing tests: pytest a')
 })

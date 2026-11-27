@@ -22,12 +22,13 @@ Mod per Claude Code (>= 2.1.287): banda sopra il prompt con contesto, costo, rat
 | `contextThreshold` | `80` | Toast quando il contesto raggiunge questa percentuale; ricompare solo dopo un calo sotto soglia (per esempio dopo `/compact`), non dopo una lettura mancata. `0` lo disattiva. |
 | `rateLimitThreshold` | `80` | Toast quando una finestra di rate limit raggiunge questa percentuale; stessa logica del contesto. `0` lo disattiva. |
 | `compactHints` | `true` | Suggerimenti al riassunto di `/compact` (vedi sopra). |
+| `modelHints` | `false` | Aggiunge al risultato di un comando fallito una riga per il modello (rilancio mirato; alla soglia, cosa fare prima del tentativo successivo). La persona non la vede. Una volta per tipo e per turno, mai per i sub-agent. |
 
 ### Dati salvati e privacy
 
 - **Log persistente** (store del plugin, gestito da Claude Code): per ogni turno data, percentuale di contesto, token, costo della sessione, se faticoso, motivo, serie, id breve della sessione e nome del progetto. Mai comandi, output, prompt o percorsi.
 - **Stato di sessione** (non persistente): l'ultimo comando fallito e il rilancio mirato, oscurati (token, password e credenziali negli URL) e abbreviati; i percorsi degli ultimi 10 file modificati, per `/compact`.
-- **Verso il modello**: con `compactHints` il riassunto di `/compact` riceve comando, rilancio e percorsi. Sono dati che il modello ha già visto nella conversazione.
+- **Verso il modello**: con `compactHints` il riassunto di `/compact` riceve comando, rilancio e percorsi. Sono dati che il modello ha già visto nella conversazione. Con `modelHints` (spento di default) la stessa idea vale per il risultato dei comandi falliti.
 - **Toast**: lo stesso comando, abbreviato a 60 caratteri, solo a schermo.
 - **Rete**: nessuna. `/effort-export` scrive un file solo dove indichi tu. Il log si cancella con `/effort-reset`.
 
