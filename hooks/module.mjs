@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import { looksLikeTestFailure, redactCommand } from './detect.mjs'
 import { suggestRerun } from './rerun.mjs'
-import { buildCompactHint, withCompactHint } from './hints.mjs'
+import { buildCompactHint, buildToolHint, withCompactHint } from './hints.mjs'
 
 const DEFAULT_THRESHOLD = 3
 const MAX_THRESHOLD = 20
@@ -80,6 +80,30 @@ async function markStruggle($, reason, command, extra = {}) {
       command: command ?? current.command,
     }
   })
+}
+
+// The line for the model after a failed command, or null. Each kind is given
+// once per turn (flags in the turn atom, so a reload cannot repeat it). The
+// streak only grows at turn.complete, so this turn would make it `previous + 1`.
+async function takeToolHint($, command, rerun, threshold) {
+  let previous = 0
+  try {
+    previous = (await read($, metrics)).consecutiveStruggles ?? 0
+  } catch {}
+
+  const flags = await read($, turn)
+  const atThreshold = (previous + 1) % threshold === 0 && !flags.seriesHinted
+  const offerRerun = !!rerun && !flags.rerunHinted
+  const hint = buildToolHint({ command, rerun: offerRerun ? rerun : null, streak: atThreshold ? previous + 1 : 0 })
+  if (hint) {
+    await update($, turn, current => ({
+      ...current,
+      rerunHinted: current.rerunHinted || offerRerun,
+      seriesHinted: current.seriesHinted || atThreshold,
+    }))
+  }
+
+  return hint
 }
 
 // A toast is cosmetic: a host without one must not cost the rest of the hook.
@@ -231,6 +255,8 @@ export function register(on, options) {
   const contextThreshold = readOption(options, 'contextThreshold', DEFAULT_CONTEXT_THRESHOLD, 0, 100)
   const rateLimitThreshold = readOption(options, 'rateLimitThreshold', DEFAULT_RATE_LIMIT_THRESHOLD, 0, 100)
   const compactHints = readFlag(options, 'compactHints', true)
+  // Off by default: a line for the model in the result of a failed command.
+  const modelHints = readFlag(options, 'modelHints', false)
   // The project this session works in, for the log; set at session.start.
   let project = null
 
@@ -289,6 +315,14 @@ export function register(on, options) {
         rerun = redactCommand(suggestRerun(e.command, ran.text), RERUN_CHARS)
       } catch {}
       await markStruggle($, ran.isError ? 'bash_error' : 'test_failure_pattern', safeCommand, rerun ? { rerun } : {})
+
+      if (modelHints) {
+        try {
+          const hint = await takeToolHint($, safeCommand, rerun, threshold)
+
+          return hint ? { ...ran, context: [...(Array.isArray(ran.context) ? ran.context : []), hint] } : ran
+        } catch {}
+      }
     } else if (safeCommand) {
       // The command that failed earlier in this turn now passes: the model
       // fixed it, which is the loop working, not a struggle.

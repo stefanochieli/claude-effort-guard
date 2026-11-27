@@ -37,6 +37,12 @@
       "title": "Hints for /compact",
       "description": "Tell the summarizer which command was failing, the narrow rerun and the files changed, so compaction keeps them.",
       "default": true
+    },
+    "modelHints": {
+      "type": "boolean",
+      "title": "Hints for the model",
+      "description": "Add a line for the model to the result of a failed command: the narrow rerun, and at the threshold what to do before the next attempt. Off by default.",
+      "default": false
     }
   }
 }

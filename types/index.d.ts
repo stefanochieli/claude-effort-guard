@@ -34,6 +34,10 @@ export type Turn = {
   /** Reads per file path (and per offset/limit range) in this turn, reset by a successful edit of the file. */
   reads?: Record<string, number>
   rerun?: string | null
+  /** modelHints: the rerun line was already given to the model in this turn. */
+  rerunHinted?: boolean
+  /** modelHints: the streak line was already given to the model in this turn. */
+  seriesHinted?: boolean
 }
 
 export type LogEntry = {
